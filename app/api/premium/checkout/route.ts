@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { sameOrigin } from "@/lib/editor-auth";
 import { preferencesSubscriber } from "@/lib/newsletter";
-import { billingConfigured, createCheckout, createBillingPortal } from "@/lib/billing";
+import { billingConfigured, billingAllowed, billingSubscriber, createCheckout, createBillingPortal } from "@/lib/billing";
 export const runtime="edge";
 export async function POST(req:Request){
  if(!sameOrigin(req))return NextResponse.json({error:"Invalid request origin"},{status:403});
@@ -9,7 +9,9 @@ export async function POST(req:Request){
  const data=await req.json().catch(()=>null) as {token?:unknown;action?:unknown}|null;
  const token=data?.token;
  if(typeof token!=="string")return NextResponse.json({error:"Open the latest edition in your email"},{status:400});
- const subscriber=await preferencesSubscriber(token);
+ const original=await preferencesSubscriber(token);
+ const subscriber=original?await billingSubscriber(original):null;
+ if(subscriber&&!billingAllowed(subscriber.email))return NextResponse.json({error:"Sandbox checkout is restricted to the test account"},{status:403});
  if(!subscriber)return NextResponse.json({error:"This link has expired. Use the link in a newer email."},{status:403});
  try{
   const url=subscriber.plan==="premium"&&subscriber.stripe_customer_id&&data?.action==="manage"

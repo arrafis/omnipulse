@@ -74,3 +74,18 @@ export const premiumCheckout = sqliteTable("premium_checkout", {
   checkoutUrl: text("checkout_url"),
   expiresAt: text("expires_at").notNull(),
 });
+
+export const premiumTestState = sqliteTable("premium_test_state", {
+ subscriberId: integer("subscriber_id").primaryKey(),
+ customerId: text("customer_id").notNull(),
+ subscriptionId: text("subscription_id").notNull(),
+ status: text("status").notNull(),
+ plan: text("plan").notNull().default("free"),
+ updatedAt: text("updated_at").notNull(),
+});
+export const premiumTestCheckout = sqliteTable("premium_test_checkout", {
+ subscriberId: integer("subscriber_id").primaryKey(),
+ sessionId: text("session_id"),
+ checkoutUrl: text("checkout_url"),
+ expiresAt: text("expires_at").notNull(),
+});
