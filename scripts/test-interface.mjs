@@ -63,3 +63,20 @@ assert.equal(sandboxCalls,0);
 assert.equal((await (await mcp.POST(request("tools/call",owner,testParams))).json()).result.structuredContent.real_charges,false);
 assert.equal(sandboxCalls,1);
 console.log("PASS sandbox checkout tool requires the original owner");
+const serviceEnv={STRIPE_TEST_CHECKOUT_TOKEN:'test-only-'.repeat(8)};
+let serviceCalls=0;
+let serviceMode=true;
+const testCheckout=await load('../app/api/premium/test-checkout/route.ts',{
+ 'cloudflare:workers':{env:serviceEnv},
+ 'next/server':{NextResponse:{json:(body,options)=>new Response(JSON.stringify(body),{status:options?.status||200})}},
+ '@/lib/billing':{billingTestMode:()=>serviceMode,prepareSandboxCheckout:async()=>{serviceCalls++;return {mode:'test',real_charges:false};}},
+});
+const serviceRequest=token=>new Request('https://example.test/api/premium/test-checkout',{method:'POST',headers:token?{authorization:`Bearer ${token}`}:{}});
+assert.equal((await testCheckout.POST(serviceRequest())).status,403);
+assert.equal((await testCheckout.POST(serviceRequest('wrong'))).status,403);
+assert.equal(serviceCalls,0);
+assert.equal((await testCheckout.POST(serviceRequest(serviceEnv.STRIPE_TEST_CHECKOUT_TOKEN))).status,200);
+serviceMode=false;
+assert.equal((await testCheckout.POST(serviceRequest(serviceEnv.STRIPE_TEST_CHECKOUT_TOKEN))).status,403);
+assert.equal(serviceCalls,1);
+console.log('PASS sandbox service endpoint rejects anonymous requests and live mode');
