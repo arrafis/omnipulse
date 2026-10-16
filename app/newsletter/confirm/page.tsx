@@ -1,0 +1,3 @@
+import Link from "next/link";
+import NewsletterAction from "../action";
+export default async function Confirm({searchParams}:{searchParams:Promise<{token?:string}>}){const params=await searchParams;return <><div className="edition-bar"><Link href="/">OMNIPULSE</Link><span>DAILY EMAIL</span></div><main className="article-wrap"><Link className="back-link" href="/">← Front page</Link><span className="kicker">ONE LAST STEP</span><h1>Confirm your email.</h1><p className="standfirst">Confirm to start receiving the morning edition. You can leave with a single click from any email.</p><NewsletterAction token={params.token||""} action="confirm"/></main></>}
