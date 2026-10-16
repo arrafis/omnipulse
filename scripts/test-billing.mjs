@@ -64,6 +64,23 @@ assert.equal(sql.prepare('SELECT plan FROM subscribers').get().plan,'free','Sand
 assert.equal(sql.prepare('SELECT stripe_customer_id FROM subscribers').get().stripe_customer_id,null);
 await b.applyStripeEvent(event);
 assert.equal(sql.prepare('SELECT COUNT(*) AS n FROM premium_test_state').get().n,1,'Webhook retries must be idempotent');
+const changed=()=>b.applyStripeEvent({livemode:false,type:'customer.subscription.updated',data:{object:{id:'sub_fixture'}}});
+const invoice=(type,customer='cus_fixture')=>({livemode:false,type,data:{object:{id:'in_fixture',customer,parent:{type:'subscription_details',subscription_details:{subscription:'sub_fixture'}}}}});
+for(const status of ['past_due','unpaid','incomplete','incomplete_expired','paused']){
+ current.status=status;await changed();
+ assert.equal((await b.billingSubscriber(reader)).plan,'free',`${status} must remove test premium`);
+ assert.equal(sql.prepare('SELECT plan FROM subscribers').get().plan,'free');
+}
+current.status='active';await b.applyStripeEvent(invoice('invoice.paid'));
+assert.equal((await b.billingSubscriber(reader)).plan,'premium','A recovered paid subscription must restore premium');
+current.status='past_due';await b.applyStripeEvent(invoice('invoice.payment_failed','cus_other'));
+assert.equal((await b.billingSubscriber(reader)).plan,'premium','Invoice customer must match the subscription');
+await b.applyStripeEvent(invoice('invoice.payment_failed'));
+assert.equal((await b.billingSubscriber(reader)).plan,'free','Failed renewal must reconcile current subscription status');
+current.status='active';await b.applyStripeEvent(invoice('invoice.paid'));
+assert.equal((await b.billingSubscriber(reader)).plan,'premium');
+current.status='canceled';await b.applyStripeEvent(invoice('invoice.paid'));
+assert.equal((await b.billingSubscriber(reader)).plan,'free','A delayed paid event must not revive a canceled subscription');
 current.status='canceled';
 await b.applyStripeEvent({livemode:false,type:'customer.subscription.deleted',data:{object:{id:'sub_fixture'}}});
 assert.equal((await b.billingSubscriber(reader)).plan,'free');
@@ -81,5 +98,6 @@ fail=true;await assert.rejects(b.verifyPremiumPrice(),/Payment service returned 
 env.STRIPE_SECRET_KEY='rk_live_fixture';assert.equal(b.billingConfigured(),false);
 env.STRIPE_MODE='live';await assert.rejects(b.prepareSandboxCheckout(),/Sandbox/);assert.equal(b.billingConfigured(),false,'Live billing requires explicit enablement');
 sql.close();
+console.log('PASS failed-payment states, recovery, invoice customer matching and out-of-order invoice events');
 console.log('PASS billing SQL flow: sandbox isolation, price checks, checkout reuse, webhook signatures and mode, paid-only activation, cancellation, portal, fail-closed live billing');
 console.log('Stripe requests were mocked; no charges or email were sent.');

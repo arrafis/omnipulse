@@ -92,13 +92,18 @@ export async function applyStripeEvent(event:StripeEvent){
    await db.prepare("INSERT INTO premium_test_state (subscriber_id,customer_id,subscription_id,status,plan,updated_at) SELECT id,?,?,?,?,? FROM subscribers WHERE id=? AND confirmed_at IS NOT NULL AND email=? ON CONFLICT(subscriber_id) DO UPDATE SET customer_id=excluded.customer_id,subscription_id=excluded.subscription_id,status=excluded.status,plan=excluded.plan,updated_at=excluded.updated_at")
     .bind(session.customer,current.id,current.status,plan,new Date().toISOString(),id,setting("STRIPE_TEST_EMAIL").toLowerCase()).run();
   }else{
-   await db.prepare("UPDATE subscribers SET stripe_customer_id=?,stripe_subscription_id=?,stripe_subscription_status=?,plan=? WHERE id=? AND confirmed_at IS NOT NULL AND (stripe_subscription_id IS NULL OR stripe_subscription_id=?)").bind(session.customer,current.id,current.status,plan,id,current.id).run();
+   await db.prepare("UPDATE subscribers SET stripe_customer_id=?,stripe_subscription_id=?,stripe_subscription_status=?,plan=? WHERE id=? AND confirmed_at IS NOT NULL AND (stripe_subscription_id IS NULL OR stripe_subscription_id=? OR stripe_subscription_status IN ('canceled','incomplete_expired'))").bind(session.customer,current.id,current.status,plan,id,current.id).run();
   }
   await db.prepare(`DELETE FROM ${checkoutTable()} WHERE subscriber_id=? AND session_id=?`).bind(id,session.id).run();
  }
- if(event.type==="customer.subscription.updated"||event.type==="customer.subscription.deleted"){
-  if(typeof object.id!=="string")return;
-  const current=await subscription(object.id);if(!correctMode(current.livemode))return;
+ if(["customer.subscription.updated","customer.subscription.deleted","invoice.paid","invoice.payment_failed"].includes(event.type)){
+  const isInvoice=event.type.startsWith("invoice.");
+  const parent=object.parent as {type?:string;subscription_details?:{subscription?:string|{id?:string}}}|undefined;
+  const reference=isInvoice?(parent?.type==="subscription_details"?parent.subscription_details?.subscription:object.subscription):object.id;
+  const id=typeof reference==="string"?reference:reference&&typeof reference==="object"?(reference as {id?:unknown}).id:null;
+  if(typeof id!=="string")return;
+  const current=await subscription(id);if(!correctMode(current.livemode))return;
+  if(isInvoice&&object.customer!==current.customer)return;
   const plan=eligible(current)?"premium":"free";
   if(billingTestMode())await db.prepare("UPDATE premium_test_state SET status=?,plan=?,updated_at=? WHERE subscription_id=? AND customer_id=?").bind(current.status,plan,new Date().toISOString(),current.id,current.customer).run();
   else await db.prepare("UPDATE subscribers SET stripe_subscription_status=?,plan=? WHERE stripe_subscription_id=? AND stripe_customer_id=?").bind(current.status,plan,current.id,current.customer).run();
