@@ -21,12 +21,12 @@ The edition checks feeds on visits at most every 15 minutes. It shows up to 24 i
 | --- | --- |
 | Public news product | Live |
 | Saved stories | Browser-local; no cross-device sync |
-| Automatic updates while closed | Owner tool implemented; connection and schedule pending |
-| Morning newsletter | Implemented; email provider, verified sender and delivery schedule pending |
+| Automatic updates while closed | Enabled hourly at :40, America/Toronto |
+| Morning newsletter | Signups enabled; daily 8:13 AM America/Toronto, with hourly retries through 12:13 PM |
 | Focus premium edition | $7 CAD/month implementation; email launch and Stripe configuration pending |
 | Public GitHub repository | [arrafis/omnipulse](https://github.com/arrafis/omnipulse); deployment remains on Sites |
 
-Email signup is disabled until delivery is configured. Paid checkout is disabled until both newsletter and billing settings are ready. No payment is accepted during setup.
+Email signup uses confirmed opt-in. The sender domain is verified and delivery configuration is active. The scheduled delivery tool was verified with an empty subscriber list; the provider test email was delivered. A live subscriber confirmation walkthrough is still recommended. Paid checkout remains disabled until Stripe configuration and payment tests are complete.
 
 ## Architecture
 
@@ -72,7 +72,7 @@ Repeat with the remaining migration filenames. Do not replay migrations already 
 
 The Site exposes `refresh_omnipulse_news` and `deliver_omnipulse_morning_digest` through its owner plugin. Calls enforce the original owner's authenticated identity; public discovery does not grant write access.
 
-Install/connect the OmniPulse plugin, verify a refresh and D1 readback, then link the hourly schedule. Digest delivery processes at most 25 confirmed subscribers per call; repeat while `remaining` is true. Idempotency and delivery records prevent repeat delivery for the same Toronto date. Never put secrets in automation prompts.
+The owner OmniPulse connection and both schedules are active. Refresh authorization and D1 readback were verified. Digest delivery processes at most 25 confirmed subscribers per call; repeat while `remaining` is true. Idempotency and delivery records prevent repeat delivery for the same Toronto date. Never put secrets in automation prompts.
 
 See [NEWSLETTER_SETUP.md](NEWSLETTER_SETUP.md) for required runtime settings, sender verification, billing, and launch checks.
 

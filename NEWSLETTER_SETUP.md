@@ -1,6 +1,6 @@
 # OmniPulse morning email launch
 
-The reader UI and delivery endpoint keep `NEWSLETTER_ENABLED` unset. This prevents collecting addresses until the sending service and schedule are ready.
+Production status (2026-10-15): sending-domain authentication and the provider delivery test passed; runtime credentials are stored in Sites. Free signups are enabled. Linked cloud tasks refresh news hourly and deliver the digest at 8:13 AM America/Toronto, with retries at 9:13–12:13 PM. The authenticated delivery function was verified with zero subscribers. The configuration guide below applies to a fresh deployment; do not enable the alternative GitHub scheduler alongside the linked Site task.
 
 ## Required production configuration
 
