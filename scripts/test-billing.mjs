@@ -27,13 +27,19 @@ const fetch=async(url,options)=>{
 };
 const module={exports:{}};
 const source=ts.transpileModule(readFileSync('lib/billing.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
-vm.runInNewContext(source,{module,exports:module.exports,require:name=>{if(name==='cloudflare:workers')return {env};if(name==='./content')return {database:()=>db};if(name==='./newsletter')return {newsletterConfigured:()=>true};throw new Error(name);},crypto:webcrypto,TextEncoder,Uint8Array,URLSearchParams,AbortSignal,fetch,console},{filename:'lib/billing.ts'});
+vm.runInNewContext(source,{module,exports:module.exports,require:name=>{if(name==='cloudflare:workers')return {env};if(name==='./content')return {database:()=>db};if(name==='./newsletter')return {newsletterConfigured:()=>true,preferencesToken:async()=>"test-preferences-token"};throw new Error(name);},crypto:webcrypto,TextEncoder,Uint8Array,URLSearchParams,AbortSignal,fetch,console},{filename:'lib/billing.ts'});
 const b=module.exports;
 assert.equal(b.billingConfigured(),true);
 assert.equal(b.billingAllowed('other@example.test'),false);
 await assert.rejects(b.createCheckout({...reader,email:'other@example.test'},'token'),/not available/);
 assert.equal(calls.length,0);
 for(const altered of [{currency:'usd'},{livemode:true},{recurring:{interval:'month',interval_count:2}},{active:false}]){const original=price;price={...price,...altered};await assert.rejects(b.verifyPremiumPrice());price=original;}
+sql.prepare('UPDATE subscribers SET confirmed_at=NULL WHERE id=1').run();
+await assert.rejects(b.prepareSandboxCheckout(),/Confirm/);
+sql.prepare('UPDATE subscribers SET confirmed_at=? WHERE id=1').run(now);
+const prepared=await b.prepareSandboxCheckout();
+assert.equal(prepared.real_charges,false);
+assert.equal(prepared.mode,'test');
 const url=await b.createCheckout(reader,'token');
 assert.ok(url.endsWith('#complete-fragment'));
 assert.equal(await b.createCheckout(reader,'token'),url);
@@ -73,7 +79,7 @@ const wrongSignature=createHmac('sha256',env.STRIPE_WEBHOOK_SECRET).update(`${ti
 assert.equal(await b.verifyStripeEvent(wrongMode,`t=${timestamp},v1=${wrongSignature}`),null);
 fail=true;await assert.rejects(b.verifyPremiumPrice(),/Payment service returned 500/);fail=false;
 env.STRIPE_SECRET_KEY='rk_live_fixture';assert.equal(b.billingConfigured(),false);
-env.STRIPE_MODE='live';assert.equal(b.billingConfigured(),false,'Live billing requires explicit enablement');
+env.STRIPE_MODE='live';await assert.rejects(b.prepareSandboxCheckout(),/Sandbox/);assert.equal(b.billingConfigured(),false,'Live billing requires explicit enablement');
 sql.close();
 console.log('PASS billing SQL flow: sandbox isolation, price checks, checkout reuse, webhook signatures and mode, paid-only activation, cancellation, portal, fail-closed live billing');
 console.log('Stripe requests were mocked; no charges or email were sent.');

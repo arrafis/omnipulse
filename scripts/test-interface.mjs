@@ -32,18 +32,19 @@ assert.ok(!render("Saved").includes("The deeper read"));
 assert.ok(render("invalid").includes("The front page"));
 console.log("PASS rendered categories, search, saved empty state and accessible save controls");
 
-let refreshes = 0;
+let refreshes = 0, sandboxCalls = 0;
 const mcp = await load("../app/mcp/route.ts", {
   "next/server": {NextResponse:{json:(body,options) => new Response(JSON.stringify(body), {status:options?.status||200,headers:{"Content-Type":"application/json"}})}},
   "@/lib/editor-auth": {identity:req => req.headers.has("oai-authenticated-user-id") ? {email:req.headers.get("oai-authenticated-user-email")} : null, isOriginalOwner: async email => email === "owner@example.test"},
   "@/lib/live-news": {refreshFeedsIfDue:async()=>{refreshes++;},liveNews:async()=>({items:live,status:{checked_at:"checked",success_at:"success",error:null}})},
+  "@/lib/billing": {prepareSandboxCheckout:async()=>{sandboxCalls++;return {mode:"test",real_charges:false,checkout_url:"https://checkout.stripe.com/test"};}},
   "@/lib/newsletter": {newsletterConfigured:()=>false,deliverDigest:()=>{throw new Error("Must not send during setup");}},
 });
 function request(method, headers = {}, params = {}) {
   return new Request("https://example.com/mcp", {method:"POST",headers:{"Content-Type":"application/json",...headers},body:JSON.stringify({jsonrpc:"2.0",id:1,method,params})});
 }
 assert.deepEqual((await (await mcp.POST(request("server/discover"))).json()).result.supportedVersions,["2026-07-28"]);
-assert.equal((await (await mcp.POST(request("tools/list"))).json()).result.tools.length,2);
+assert.equal((await (await mcp.POST(request("tools/list"))).json()).result.tools.length,3);
 const params={name:"refresh_omnipulse_news"};
 assert.equal((await mcp.POST(request("tools/call",{},params))).status,401);
 assert.equal((await mcp.POST(request("tools/call",{"oai-authenticated-user-id":"wrong","oai-authenticated-user-email":"reader@example.test"},params))).status,403);
@@ -54,3 +55,11 @@ assert.equal(refreshes,1);
 assert.equal((await mcp.POST(request("tools/call",owner,{name:"deliver_omnipulse_morning_digest"}))).status,503);
 console.log("PASS MCP discovery, tool discovery, authorization and disabled delivery");
 console.log("Interface checks passed (server rendering and stubbed services; not browser or provider integration tests).");
+
+const testParams={name:"prepare_omnipulse_test_checkout"};
+assert.equal((await mcp.POST(request("tools/call",{},testParams))).status,401);
+assert.equal((await mcp.POST(request("tools/call",{"oai-authenticated-user-id":"wrong","oai-authenticated-user-email":"reader@example.test"},testParams))).status,403);
+assert.equal(sandboxCalls,0);
+assert.equal((await (await mcp.POST(request("tools/call",owner,testParams))).json()).result.structuredContent.real_charges,false);
+assert.equal(sandboxCalls,1);
+console.log("PASS sandbox checkout tool requires the original owner");

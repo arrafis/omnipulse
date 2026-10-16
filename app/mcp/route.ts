@@ -3,9 +3,16 @@ import { identity, isOriginalOwner } from "@/lib/editor-auth";
 import { refreshFeedsIfDue, liveNews } from "@/lib/live-news";
 import { deliverDigest, newsletterConfigured } from "@/lib/newsletter";
 
+import { prepareSandboxCheckout } from "@/lib/billing";
+
 export const runtime = "edge";
 
 const tools = [
+  {
+    name: "prepare_omnipulse_test_checkout",
+    description: "Prepare a Stripe sandbox checkout or portal link for the configured confirmed test reader only. Owner-only; no real charges or email. Returns the full checkout URL and preferences URL.",
+    inputSchema: { type: "object", properties: {}, additionalProperties: false },
+  },
   {
     name: "refresh_omnipulse_news",
     description: "Check OmniPulse's approved public publisher feeds and update its news database. Safe to retry; refreshes at most once per 15 minutes.",
@@ -40,10 +47,14 @@ export async function POST(req: Request) {
   if (!person) return failure(id, -32001, "Sign in as the OmniPulse owner", 401);
   if (!await isOriginalOwner(person.email)) return failure(id, -32003, "Owner access required", 403);
   const name = body.params?.name;
-  if (name !== tools[0].name && name !== tools[1].name) return failure(id, -32602, "Unknown tool");
+  if (!tools.some(tool => tool.name === name)) return failure(id, -32602, "Unknown tool");
 
   try {
-    if (name === tools[0].name) {
+    if (name === "prepare_omnipulse_test_checkout") {
+      const result = await prepareSandboxCheckout();
+      return rpc(id, { content: [{ type: "text", text: JSON.stringify(result) }], structuredContent: result });
+    }
+    if (name === "refresh_omnipulse_news") {
       await refreshFeedsIfDue();
       const { items, status } = await liveNews();
       const result = { checked_at: status.checked_at, success_at: status.success_at, source_error: status.error, recent_stories: items.length };

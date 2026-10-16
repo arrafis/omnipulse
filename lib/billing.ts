@@ -1,6 +1,6 @@
 import { env } from "cloudflare:workers";
 import { database } from "./content";
-import { newsletterConfigured, type PreferenceSubscriber } from "./newsletter";
+import { newsletterConfigured, preferencesToken, type PreferenceSubscriber } from "./newsletter";
 
 const setting=(key:string)=>String((env as unknown as Record<string,unknown>)[key]||"").trim();
 export const billingTestMode=()=>setting("STRIPE_MODE")==="test";
@@ -103,4 +103,15 @@ export async function applyStripeEvent(event:StripeEvent){
   if(billingTestMode())await db.prepare("UPDATE premium_test_state SET status=?,plan=?,updated_at=? WHERE subscription_id=? AND customer_id=?").bind(current.status,plan,new Date().toISOString(),current.id,current.customer).run();
   else await db.prepare("UPDATE subscribers SET stripe_subscription_status=?,plan=? WHERE stripe_subscription_id=? AND stripe_customer_id=?").bind(current.status,plan,current.id,current.customer).run();
  }
+}
+
+// Owner MCP callers may prepare only the configured, confirmed sandbox reader.
+export async function prepareSandboxCheckout(){
+ if(!billingTestMode()||!billingConfigured())throw new Error("Sandbox billing is not configured");
+ const reader=await database().prepare("SELECT id,email,plan,preferred_categories,stripe_customer_id FROM subscribers WHERE email=? AND confirmed_at IS NOT NULL").bind(setting("STRIPE_TEST_EMAIL").toLowerCase()).first<PreferenceSubscriber>();
+ if(!reader||!billingAllowed(reader.email))throw new Error("Confirm the configured test email first");
+ const current=await billingSubscriber(reader),token=await preferencesToken(reader.id,reader.email);
+ const preferences_url=`${setting("NEWSLETTER_SITE_URL")}/preferences?token=${encodeURIComponent(token)}`;
+ const checkout_url=current.plan==="premium"&&current.stripe_customer_id?await createBillingPortal(current.stripe_customer_id,token):await createCheckout(current,token);
+ return {mode:"test",real_charges:false,plan:current.plan,checkout_url,preferences_url};
 }
