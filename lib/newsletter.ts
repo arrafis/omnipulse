@@ -26,7 +26,7 @@ export function freshToken(){return crypto.randomUUID()+crypto.randomUUID();}
 
 async function sendEmail(to:string,subject:string,html:string,plain:string,unique:string,unsubscribe?:string){
  const c=config();
- const response=await fetch("https://api.resend.com/emails",{method:"POST",headers:{"Authorization":`Bearer ${c.apiKey}`,"Content-Type":"application/json","Idempotency-Key":unique},body:JSON.stringify({from:c.from,to:[to],subject,html,text:plain,headers:unsubscribe?{"List-Unsubscribe":`<${unsubscribe}>, <mailto:${c.contact}?subject=unsubscribe>`,"List-Unsubscribe-Post":"List-Unsubscribe=One-Click"}:undefined}),signal:AbortSignal.timeout(8000)});
+ const response=await fetch("https://api.resend.com/emails",{method:"POST",headers:{"Authorization":`Bearer ${c.apiKey}`,"Content-Type":"application/json","Idempotency-Key":unique},body:JSON.stringify({from:c.from,reply_to:c.contact,to:[to],subject,html,text:plain,headers:unsubscribe?{"List-Unsubscribe":`<${unsubscribe}>, <mailto:${c.contact}?subject=unsubscribe>`,"List-Unsubscribe-Post":"List-Unsubscribe=One-Click"}:undefined}),signal:AbortSignal.timeout(8000)});
  const result=await response.json().catch(()=>({})) as {id?:string;message?:string};
  if(!response.ok||!result.id)throw new Error(`Email provider rejected request (${response.status})`);
  return result.id;

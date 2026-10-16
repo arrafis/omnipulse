@@ -78,7 +78,7 @@ See [NEWSLETTER_SETUP.md](NEWSLETTER_SETUP.md) for required runtime settings, se
 
 ## Verification
 
-`pnpm test` covers RSS/Atom parsing, unsafe hosts and URLs, invalid dates/entities, bounded excerpts, and corrupt/unsafe/duplicate reading-list records. It also checks server-rendered category/search states and the MCP protocol/authentication boundary with stubbed services. `pnpm typecheck` checks application types. `pnpm build` creates the Worker artifact. Browser interaction QA must be recorded separately; these checks alone do not prove hydration or visual behavior.
+`pnpm test` covers RSS/Atom parsing, unsafe hosts and URLs, invalid dates/entities, bounded excerpts, and corrupt/unsafe/duplicate reading-list records. It also checks server-rendered category/search states and the MCP protocol/authentication boundary with stubbed services. `pnpm typecheck` checks application types. `pnpm build` creates the Worker artifact. The newsletter test runs real SQL in a temporary SQLite database and captures all email requests locally. It covers confirmed opt-in, throttling, one-use confirmation links, reply-to, per-day delivery deduplication and unsubscribe. Browser interaction QA must be recorded separately; these checks alone do not prove hydration or visual behavior.
 
 ## Constraints
 
