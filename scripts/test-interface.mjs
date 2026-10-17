@@ -16,7 +16,8 @@ async function load(path, stubs) {
 }
 const briefingHelpers=await load("../lib/briefing.ts",{});
 const readingHelpers=await load("../lib/reading-list.ts",{});
-const briefingComponent=await load("../app/briefing-experience.tsx",{"@/lib/briefing":briefingHelpers,"@/lib/reading-list":readingHelpers});
+const learningTypes=await load('../lib/learning-types.ts',{});
+const briefingComponent=await load("../app/briefing-experience.tsx",{"@/lib/briefing":briefingHelpers,"@/lib/reading-list":readingHelpers,"@/lib/learning-types":learningTypes});
 const desk = await load("../app/news-desk.tsx", {
   "./briefing-experience": {default: () => React.createElement("section", null, "Your briefing")},
   "./subscribe": {default: () => React.createElement("div", null, "Email setup")},
@@ -34,15 +35,25 @@ assert.ok(ai.includes('aria-label="Save story: AI example"')); assert.ok(ai.incl
 assert.ok(!render("All", "doesnotexist").includes("AI example"));
 assert.ok(render("Saved").includes("Your reading list is empty"));
 assert.ok(!render("Saved").includes("The deeper read"));
-assert.ok(render("invalid").includes("The front page"));
+assert.ok(render("invalid").includes("Today’s edition"));
 console.log("PASS rendered categories, search, saved empty state and accessible save controls");
 
 const briefingHtml=renderToStaticMarkup(React.createElement(briefingComponent.default,{items:live}));
 assert.ok(briefingHtml.includes("Your briefing"));assert.ok(briefingHtml.includes("Since your last visit"));assert.ok(briefingHtml.includes("From the publisher"));assert.ok(briefingHtml.includes("Mark edition read"));assert.ok(briefingHtml.includes("Report an issue"));assert.ok(briefingHtml.includes("not story-specific analysis"));
 console.log("PASS essential briefing rendering, source transparency and reading controls");
+const baseLessons=(await load('../lib/learning-base.ts',{})).baseLessons;
+const catalog=await load('../app/learn/learning-catalog.tsx',{'@/lib/learning-types':learningTypes});
+const catalogHtml=renderToStaticMarkup(React.createElement(catalog.default,{lessons:baseLessons}));
+for(const level of ['Beginner','Intermediate','Advanced'])assert.ok(catalogHtml.includes(level));
+assert.equal((catalogHtml.match(/class="lesson-card"/g)||[]).length,18);
+assert.ok(catalogHtml.includes('/learn/transformer-attention'));assert.ok(catalogHtml.includes('Find a concept'));
+console.log('PASS learning catalog renders all paths, depth levels, lesson routes and search controls');
 
 let refreshes = 0, sandboxCalls = 0;
 const mcp = await load("../app/mcp/route.ts", {
+  '@/lib/learning':{allLessons:async()=>[],publishLesson:async()=>({published:true}),researchHosts:[]},
+  '@/lib/story-context':{storyContexts:async()=>[],publishStoryContext:async()=>({published:true})},
+  '@/lib/briefing':briefingHelpers,
   "next/server": {NextResponse:{json:(body,options) => new Response(JSON.stringify(body), {status:options?.status||200,headers:{"Content-Type":"application/json"}})}},
   "@/lib/editor-auth": {identity:req => req.headers.has("oai-authenticated-user-id") ? {email:req.headers.get("oai-authenticated-user-email")} : null, isOriginalOwner: async email => email === "owner@example.test"},
   "@/lib/live-news": {refreshFeedsIfDue:async()=>{refreshes++;},liveNews:async()=>({items:live,status:{checked_at:"checked",success_at:"success",error:null}})},
@@ -53,11 +64,15 @@ function request(method, headers = {}, params = {}) {
   return new Request("https://example.com/mcp", {method:"POST",headers:{"Content-Type":"application/json",...headers},body:JSON.stringify({jsonrpc:"2.0",id:1,method,params})});
 }
 assert.deepEqual((await (await mcp.POST(request("server/discover"))).json()).result.supportedVersions,["2026-07-28"]);
-assert.equal((await (await mcp.POST(request("tools/list"))).json()).result.tools.length,3);
+assert.equal((await (await mcp.POST(request("tools/list"))).json()).result.tools.length,6);
 const params={name:"refresh_omnipulse_news"};
 assert.equal((await mcp.POST(request("tools/call",{},params))).status,401);
 assert.equal((await mcp.POST(request("tools/call",{"oai-authenticated-user-id":"wrong","oai-authenticated-user-email":"reader@example.test"},params))).status,403);
 assert.equal(refreshes,0);
+for(const name of ['list_omnipulse_learning_topics','publish_omnipulse_learning_topic','publish_omnipulse_story_context']){
+ assert.equal((await mcp.POST(request('tools/call',{}, {name}))).status,401);
+ assert.equal((await mcp.POST(request('tools/call',{'oai-authenticated-user-id':'wrong','oai-authenticated-user-email':'reader@example.test'}, {name}))).status,403);
+}
 const owner={"oai-authenticated-user-id":"owner","oai-authenticated-user-email":"owner@example.test"};
 assert.equal((await (await mcp.POST(request("tools/call",owner,params))).json()).result.structuredContent.recent_stories,2);
 assert.equal(refreshes,1);

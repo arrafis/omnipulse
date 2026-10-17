@@ -1,5 +1,15 @@
 import { integer, sqliteTable, text, index, uniqueIndex } from "drizzle-orm/sqlite-core";
 
+export const learningTopics = sqliteTable("learning_topics", {
+ slug:text("slug").primaryKey(),conceptKey:text("concept_key").notNull().unique(),title:text("title").notNull(),
+ category:text("category").notNull(),level:text("level").notNull(),content:text("content").notNull(),
+ addedDate:text("added_date").notNull().unique(),createdAt:text("created_at").notNull(),
+});
+export const storyContexts = sqliteTable("story_contexts", {
+ url:text("url").primaryKey(),fingerprint:text("fingerprint").notNull(),why:text("why").notNull(),watch:text("watch").notNull(),
+ sources:text("sources").notNull(),updatedAt:text("updated_at").notNull(),
+});
+
 export const articles = sqliteTable("articles", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   slug: text("slug").notNull().unique(),

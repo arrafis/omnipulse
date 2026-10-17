@@ -19,7 +19,8 @@ export function groupStories(items:FeedItem[]):StoryGroup[]{
  return groups;
 }
 export function dailyBrief(items:FeedItem[],limit=5):StoryGroup[]{
- const groups=groupStories(items),picks:StoryGroup[]=[];
+ const topical=items.filter(item=>item.category!=='Tech'||/\b(ai|tech|technology|technologies|software|hardware|chip|computer|cloud|data|security|cyber|privacy|internet|robot|model|phone|spacex|starlink|satellite|wireless|mobile|apple|google|microsoft|nvidia|meta|openai|semiconductor|api|browser|battery|electric|startup|quantum)\b/i.test(item.title));
+ const groups=groupStories(topical),picks:StoryGroup[]=[];
  for(const category of ['AI','Tech','Markets']){const item=groups.find(g=>g.lead.category===category);if(item&&picks.length<limit)picks.push(item);}
  for(const group of groups){if(picks.length>=limit)break;if(!picks.includes(group)&&!picks.some(p=>p.lead.source===group.lead.source&&picks.filter(x=>x.lead.source===group.lead.source).length>=2))picks.push(group);}
  for(const group of groups){if(picks.length>=limit)break;if(!picks.includes(group))picks.push(group);}

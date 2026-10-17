@@ -1,4 +1,6 @@
-import { dailyBrief, contextGuides, sourceType } from "./briefing";
+import { dailyBrief } from "./briefing";
+import {storyContexts} from "./story-context";
+import {renderDigest} from "./digest-template";
 import { env } from "cloudflare:workers";
 import { database } from "./content";
 import { refreshFeedsIfDue, type FeedItem } from "./live-news";
@@ -85,6 +87,7 @@ export async function deliverDigest(){
  const retryAfter=new Date(Date.now()-60*60000).toISOString(),staleAfter=new Date(Date.now()-20*60000).toISOString();
  const candidates=(await db.prepare("SELECT s.id,s.email,s.plan,s.preferred_categories FROM subscribers s LEFT JOIN newsletter_deliveries d ON d.subscriber_id=s.id AND d.delivery_date=? WHERE s.confirmed_at IS NOT NULL AND s.plan IN ('free','premium') AND s.delivery_hour<=? AND (d.id IS NULL OR (d.status='failed' AND d.attempted_at<?) OR (d.status='sending' AND d.attempted_at<?)) ORDER BY s.id LIMIT 26")
   .bind(today,hour,retryAfter,staleAfter).all<Recipient>()).results;
+ const contexts=await storyContexts(items);
  let sent=0,failed=0;
  for(const subscriber of candidates.slice(0,25)){
   const stories=pickStories(items,subscriber.plan,subscriber.preferred_categories);
@@ -101,11 +104,7 @@ export async function deliverDigest(){
   const oneClick=`${c.siteUrl}/api/newsletter/one-click?token=${encodeURIComponent(token)}`;
   const preferences=`${c.siteUrl}/preferences?token=${encodeURIComponent(await preferencesToken(subscriber.id,subscriber.email))}`;
   const title=`OmniPulse ${subscriber.plan==="premium"?"Focus":"Daily"} · ${new Date().toLocaleDateString("en-US",{timeZone:"America/Toronto",month:"long",day:"numeric"})}`;
-  const rows=stories.map(item=>`<tr><td style="padding:18px 0;border-bottom:1px solid #e4e1d8"><small style="color:#ba4b30">${escapeHtml(item.category.toUpperCase())} · ${escapeHtml(sourceType(item.source))} · ${escapeHtml(item.source)} · ${escapeHtml(item.published_at.slice(0,10))}</small><h2 style="font:700 22px Georgia,serif;margin:7px 0"><a style="color:#17212d" href="${escapeHtml(item.url)}">${escapeHtml(item.title)}</a></h2>${item.summary?`<p style="margin:0;color:#5c6465">${escapeHtml(item.summary)}${item.summary.length>=240?"…":""}</p>`:""}</td></tr>`).join("");
-  const guide=contextGuides[stories[0].category];
-  const essentials=stories.slice(0,3).map(item=>`<li style="margin:10px 0"><a href="${escapeHtml(item.url)}">${escapeHtml(item.title)}</a></li>`).join("");
-  const html=`<div lang="en" style="font:16px/1.6 Arial,sans-serif;color:#17212d;max-width:650px;margin:auto;padding:24px;background:#fffdf9"><p style="color:#ba4b30;font-weight:bold;letter-spacing:.12em">${subscriber.plan==="premium"?"YOUR TOPIC EDITION":"THE MORNING EDITION"}</p><h1 style="font:700 46px Georgia,serif;margin:0">OMNIPULSE.</h1><p>Understand what changed. Make room for your day.</p><h2 style="font:700 25px Georgia,serif">The 30-second edition</h2><ol>${essentials}</ol><h2 style="font:700 25px Georgia,serif">Your essential briefing</h2><p>${stories.length} source-linked reads ${subscriber.plan==="premium"?`in ${escapeHtml(subscriber.preferred_categories.replaceAll(",",", "))}`:"across AI, technology and markets"}. Excerpts come from publisher feeds.</p><table role="presentation" style="border-collapse:collapse;width:100%">${rows}</table><h2 style="font:700 25px Georgia,serif">One useful explanation</h2><h3>${escapeHtml(guide.title)}</h3><p>${escapeHtml(guide.body)}</p><p><a href="${guide.url}">${escapeHtml(guide.source)}</a></p><h2 style="font:700 25px Georgia,serif">What to watch</h2><p>${escapeHtml(guide.watch)}</p><p style="font-size:12px">This is general background, not analysis of the selected stories. Stories are selected automatically for recency and topic variety. Excerpts are supplied by publishers.</p><p><a href="${c.siteUrl}">Explore the full edition</a> · <a href="${escapeHtml(preferences)}">Manage topics</a></p><hr><small>OmniPulse · ${escapeHtml(c.address)} · Contact: ${escapeHtml(c.contact)}<br><a href="${escapeHtml(leave)}">Unsubscribe</a></small></div>`;
-  const plain=`${title}\n\nTHE 30-SECOND EDITION\n${stories.slice(0,3).map(item=>item.title+"\n"+item.url).join("\n\n")}\n\nYOUR ESSENTIAL BRIEFING\n\n`+stories.map(item=>`${item.category} · ${item.source} · ${item.published_at.slice(0,10)}\n${item.title}\n${item.summary}\n${item.url}`).join("\n\n")+`\n\nONE USEFUL EXPLANATION\n${guide.title}\n${guide.body}\n${guide.url}\n\nWHAT TO WATCH\n${guide.watch}\nGeneral background, not story-specific analysis. Publisher excerpts; automatic selection for recency and topic variety.\n\nExplore: ${c.siteUrl}\nManage topics: ${preferences}\nUnsubscribe: ${leave}\nOmniPulse · ${c.address} · ${c.contact}`;
+  const {html,plain}=renderDigest({stories,contexts,title,siteUrl:c.siteUrl,preferences,leave,address:c.address,contact:c.contact,focus:subscriber.plan==="premium"});
   try {
    const id=await sendEmail(subscriber.email,title,html,plain,`omnipulse-${today}-${subscriber.id}`,oneClick);
    await db.prepare("UPDATE newsletter_deliveries SET status='sent',sent_at=?,provider_id=? WHERE subscriber_id=? AND delivery_date=?").bind(new Date().toISOString(),id,subscriber.id,today).run();sent++;

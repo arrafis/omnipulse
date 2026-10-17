@@ -57,6 +57,13 @@
       "when": 1792249257503,
       "tag": "0007_chief_bloodstrike",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1792250578788,
+      "tag": "0008_overconfident_scalphunter",
+      "breakpoints": true
     }
   ]
 }

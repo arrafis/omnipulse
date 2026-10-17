@@ -67,7 +67,8 @@ result=await newsletter.deliverDigest();assert.equal(result.sent,0,"Later delive
 sql.prepare("UPDATE subscribers SET delivery_hour=0").run();
 result=await newsletter.deliverDigest();assert.equal(result.sent,1);assert.equal(mail.length,2);
 assert.equal(mail[1].reply_to,env.NEWSLETTER_CONTACT_EMAIL);
-assert.ok(mail[1].html.includes('The 30-second edition'));assert.ok(mail[1].html.includes('One useful explanation'));assert.ok(mail[1].html.includes('role="presentation"'));
+assert.ok(mail[1].html.includes('The 30-second edition'));assert.ok(mail[1].html.includes('ONE USEFUL EXPLANATION'));assert.ok(mail[1].html.includes('role="presentation"'));
+assert.ok(mail[1].html.includes('<html lang="en" dir="ltr">'));assert.ok(mail[1].html.includes('<title>'));assert.ok(mail[1].html.includes('prefers-color-scheme:dark'));assert.ok(mail[1].html.includes('/learn/'));
 const preferenceRoute=load(path.join(root,"app/api/preferences/route.ts"));
 const preferenceToken=await newsletter.preferencesToken(1,"reader@example.test");
 assert.equal((await preferenceRoute.POST(request("/api/preferences",{token:preferenceToken,categories:["Tech"],deliveryHour:13}))).status,400);
