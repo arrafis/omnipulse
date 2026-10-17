@@ -6,7 +6,6 @@ import type { FeedItem, FeedStatus } from "@/lib/live-news";
 import Subscribe from "./subscribe";
 import BriefingExperience from "./briefing-experience";
 import { editionDay } from "@/lib/edition-clock";
-import Link from 'next/link';
 import type {StoryContext} from '@/lib/story-context';
 import { READING_LIST_KEY, readReadingList, type SavedStory } from "@/lib/reading-list";
 
@@ -87,12 +86,12 @@ export default function NewsDesk({ live, feedStatus, newsletterEnabled, initialC
 
   const fresh = Boolean(feedStatus.success_at && editionDay(new Date(feedStatus.success_at)) === editionDay(new Date()));
   return <>
-    <div className="nav-shell"><nav className="main-nav" aria-label="Sections">{(["All", "Following", "Saved"] as Section[]).map(item =>
+    <div className="nav-shell"><nav className="main-nav" aria-label="Sections">{(["All", "AI", "Tech", "Markets", "Following", "Saved"] as Section[]).map(item =>
       <button type="button" key={item} onClick={() => select(item)} className={section === item ? "selected" : ""} aria-pressed={section === item}>
         {item === "All" ? "Today" : item}<span className="nav-count">{item === "Saved" ? saved.length : ""}</span>
-      </button>)}<Link href="/learn" className="nav-learn">Learn</Link></nav><button type="button" className="search-toggle" aria-label={searchOpen ? "Close search" : "Open search"} aria-expanded={searchOpen} onClick={() => { setSearchOpen(!searchOpen); if (searchOpen) changeQuery(""); }}><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8"/><path d="m16 16 5 5"/></svg><span>Search</span></button></div>
+      </button>)}<a href="/learn" className="nav-learn">Learn</a></nav><button type="button" className="search-toggle" aria-label={searchOpen ? "Close search" : "Open search"} aria-expanded={searchOpen} onClick={() => { setSearchOpen(!searchOpen); if (searchOpen) changeQuery(""); }}><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8"/><path d="m16 16 5 5"/></svg><span>Search</span></button></div>
     <main className="site-wrap" id="main-content">
-      <div className="desk-secondary"><details><summary>Topics</summary><div>{categories.map(category=><button key={category} aria-pressed={section===category} onClick={()=>select(category)}>{category}</button>)}</div></details><a href="#newsletter">Get the morning email</a></div>
+      <div className="desk-secondary"><a href="#newsletter">Get the morning email</a></div>
       <p className="save-feedback" role="status" aria-live="polite">{saveMessage}{undoStory&&<button className="undo-button" onClick={()=>toggleSaved(undoStory)}>Undo</button>}</p>
       {searchOpen && <form className="search-panel" onSubmit={search} role="search"><label htmlFor="site-search">Search the edition</label><input id="site-search" name="q" autoFocus value={query} maxLength={100} onChange={event => changeQuery(event.target.value)} placeholder="Try AI, chips, interest rates…" /><button type="submit">Search ↗</button></form>}
       <div className="edition-heading"><div><span className="overline">TODAY&apos;S EDITION <span className="overline-rule" /></span><h1>{heading}</h1></div><div className="edition-meta"><span className={"live-pill" + (!fresh || feedStatus.error ? " feed-warning" : "")}><span />{!fresh ? "AWAITING EDITION" : feedStatus.error ? "PARTIAL UPDATE" : "MORNING EDITION"}</span><span>{new Date().toLocaleDateString("en-US", { timeZone: "America/Toronto", month: "long", day: "numeric", year: "numeric" })} · Eastern</span></div></div>
