@@ -20,6 +20,7 @@ const briefingComponent=await load("../app/briefing-experience.tsx",{"@/lib/brie
 const desk = await load("../app/news-desk.tsx", {
   "./briefing-experience": {default: () => React.createElement("section", null, "Your briefing")},
   "./subscribe": {default: () => React.createElement("div", null, "Email setup")},
+  "@/lib/edition-clock": {editionDay:date=>date.toISOString().slice(0,10)},
   "@/lib/reading-list": {READING_LIST_KEY: "test", readReadingList: () => []},
 });
 const live = [{id:1,url:"https://example.com/ai",title:"AI example",summary:"A publisher summary that has enough detail for further reading.",category:"AI",source:"Example",published_at:new Date().toISOString(),fetched_at:new Date().toISOString()},
@@ -29,7 +30,7 @@ function render(initialCategory, initialQuery = "") {
 }
 const ai = render("AI");
 assert.ok(ai.includes("AI example")); assert.ok(!ai.includes("Tech example"));
-assert.ok(ai.includes('aria-label="Save story: AI example"')); assert.ok(ai.includes("AWAITING UPDATE"));
+assert.ok(ai.includes('aria-label="Save story: AI example"')); assert.ok(ai.includes("AWAITING EDITION"));
 assert.ok(!render("All", "doesnotexist").includes("AI example"));
 assert.ok(render("Saved").includes("Your reading list is empty"));
 assert.ok(!render("Saved").includes("The deeper read"));

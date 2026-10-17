@@ -1,6 +1,7 @@
 import { database, type Category } from "./content";
 
 import { parseFeed, type Feed } from "./rss";
+import { refreshWindow } from "./edition-clock";
 export const feeds: Feed[] = [
   {name:"BBC News Technology",category:"Tech",url:"https://feeds.bbci.co.uk/news/technology/rss.xml",host:"bbc.co.uk"},
   {name:"BBC News Business",category:"Markets",url:"https://feeds.bbci.co.uk/news/business/rss.xml",host:"bbc.co.uk"},
@@ -17,10 +18,12 @@ export type FeedStatus = {checked_at:string|null;success_at:string|null;error:st
 
 
 export async function refreshFeedsIfDue():Promise<void> {
-  const db=database(), now=new Date().toISOString();
+  const current=new Date(), window=refreshWindow(current);
+  if(!window)return;
+  const db=database(), now=current.toISOString();
   await db.prepare("INSERT OR IGNORE INTO feed_sync (id,next_at) VALUES (1,'1970-01-01T00:00:00.000Z')").run();
-  const claimed=await db.prepare("UPDATE feed_sync SET checked_at=?,next_at=? WHERE id=1 AND next_at<=?")
-   .bind(now,new Date(Date.now()+15*60000).toISOString(),now).run();
+  const claimed=await db.prepare("UPDATE feed_sync SET checked_at=?,next_at=? WHERE id=1 AND (checked_at IS NULL OR checked_at<?)")
+   .bind(now,window.next,window.start).run();
   if(!claimed.meta.changes)return;
   const results=await Promise.allSettled(feeds.map(async feed=>{
     const response=await fetch(feed.url,{headers:{"User-Agent":"OmniPulse/1.0 (RSS reader)","Accept":"application/rss+xml, application/xml, text/xml"},signal:AbortSignal.timeout(6500)});
@@ -35,7 +38,7 @@ export async function refreshFeedsIfDue():Promise<void> {
   const errors=results.flatMap((result,index)=>result.status==="rejected"?[`${feeds[index].name} unavailable`]:[]);
   results.forEach((result,index)=>{if(result.status==="rejected")console.error("RSS refresh failed",feeds[index].name,result.reason);});
   await db.prepare("UPDATE feed_sync SET success_at=CASE WHEN ? THEN ? ELSE success_at END,error=?,next_at=? WHERE id=1")
-   .bind(results.some(r=>r.status==="fulfilled")?1:0,now,errors.length?errors.join("; "):null,new Date(Date.now()+(errors.length===feeds.length?5:15)*60000).toISOString()).run();
+   .bind(results.some(r=>r.status==="fulfilled")?1:0,now,errors.length?errors.join("; "):null,window.next).run();
   await db.prepare("DELETE FROM feed_items WHERE published_at < ?").bind(new Date(Date.now()-30*86400000).toISOString()).run();
 }
 

@@ -5,6 +5,7 @@ import type { Category } from "@/lib/content";
 import type { FeedItem, FeedStatus } from "@/lib/live-news";
 import Subscribe from "./subscribe";
 import BriefingExperience from "./briefing-experience";
+import { editionDay } from "@/lib/edition-clock";
 import { READING_LIST_KEY, readReadingList, type SavedStory } from "@/lib/reading-list";
 
 type Section = Category | "All" | "Saved";
@@ -81,7 +82,7 @@ export default function NewsDesk({ live, feedStatus, newsletterEnabled, initialC
   const [lead, ...rest] = useMemo(() => furtherReading(visibleNews, section), [visibleNews, section]);
   const heading = term ? "Search results for “" + query.trim() + "”" : section === "All" ? "The front page" : section === "Saved" ? "Your reading list" : section + " desk";
 
-  const fresh = Boolean(feedStatus.success_at && Date.now() - Date.parse(feedStatus.success_at) < 30 * 60 * 1000);
+  const fresh = Boolean(feedStatus.success_at && editionDay(new Date(feedStatus.success_at)) === editionDay(new Date()));
   return <>
     <div className="nav-shell"><nav className="main-nav" aria-label="Sections">{(["All", ...categories, "Saved"] as Section[]).map(item =>
       <button type="button" key={item} onClick={() => select(item)} className={section === item ? "selected" : ""} aria-pressed={section === item}>
@@ -90,11 +91,11 @@ export default function NewsDesk({ live, feedStatus, newsletterEnabled, initialC
     <main className="site-wrap" id="main-content">
       <p className="save-feedback" role="status" aria-live="polite">{saveMessage}</p>
       {searchOpen && <form className="search-panel" onSubmit={search} role="search"><label htmlFor="site-search">Search the edition</label><input id="site-search" name="q" autoFocus value={query} maxLength={100} onChange={event => changeQuery(event.target.value)} placeholder="Try AI, chips, interest rates…" /><button type="submit">Search ↗</button></form>}
-      <div className="edition-heading"><div><span className="overline">TODAY&apos;S EDITION <span className="overline-rule" /></span><h1>{heading}</h1></div><div className="edition-meta"><span className={"live-pill" + (!fresh || feedStatus.error ? " feed-warning" : "")}><span />{!fresh ? "AWAITING UPDATE" : feedStatus.error ? "PARTIAL UPDATE" : "FEEDS UPDATED"}</span><span>{new Date().toLocaleDateString("en-US", { timeZone: "UTC", month: "long", day: "numeric", year: "numeric" })} · UTC</span></div></div>
+      <div className="edition-heading"><div><span className="overline">TODAY&apos;S EDITION <span className="overline-rule" /></span><h1>{heading}</h1></div><div className="edition-meta"><span className={"live-pill" + (!fresh || feedStatus.error ? " feed-warning" : "")}><span />{!fresh ? "AWAITING EDITION" : feedStatus.error ? "PARTIAL UPDATE" : "MORNING EDITION"}</span><span>{new Date().toLocaleDateString("en-US", { timeZone: "UTC", month: "long", day: "numeric", year: "numeric" })} · UTC</span></div></div>
 
       {section === "All" && !term && <BriefingExperience items={live}/>}
       <section className="live-section" aria-labelledby="latest-heading" key={section}><div className="live-heading"><div><span className="section-index">01 / THE WIRE</span><h2 id="latest-heading">{section === "Saved" ? "Saved stories" : "Latest updates"}<span className="heading-period">.</span></h2></div><span className="feed-status">{feedStatus.success_at ? "Feeds checked " + new Date(feedStatus.success_at).toLocaleString("en-US", { timeZone: "UTC", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) + " UTC" : "Awaiting first feed update"}{feedStatus.error ? " · Some sources unavailable" : ""}</span></div>
-        <p className="feed-note">{section === "Saved" ? "Saved on this browser only. Your reading list stays here when you return; clearing browser storage removes it." : <>Direct from publisher feeds. Open a headline for the full report, or save it for later. Updates are checked on visits, at most every 15 minutes. <a href="/about">Our sources ↗</a></>}</p>
+        <p className="feed-note">{section === "Saved" ? "Saved on this browser only. Your reading list stays here when you return; clearing browser storage removes it." : <>Direct from publisher feeds. Open a headline for the full report, or save it for later. The edition refreshes once each morning, starting at 8 AM Eastern Time. <a href="/about">Our sources ↗</a></>}</p>
         {visibleNews.length ? <><div className="live-grid">{visibleNews.slice(0, visibleCount).map((item, index) => <article key={item.url} className={"live-card " + (index === 0 ? "live-card-featured" : "")}><a className="headline-link" href={item.url} target="_blank" rel="noopener noreferrer"><span className="card-topline"><span className="source-badge">{item.category}</span><span className="source-name">{item.source}</span></span><h3>{item.title}</h3><span className="card-source"><time dateTime={item.published_at}>{date(item.published_at)}</time><span>Read original ↗</span></span></a><button type="button" className="save-story" aria-pressed={saved.some(story => story.url === item.url)} aria-label={(saved.some(story => story.url === item.url) ? "Remove saved story: " : "Save story: ") + item.title} onClick={() => toggleSaved(item)}>{saved.some(story => story.url === item.url) ? "✓ Saved" : "+ Save"}</button></article>)}</div>{visibleNews.length > visibleCount && <button type="button" className="show-more" onClick={() => setVisibleCount(count => count + 12)}>Show more headlines <span>{visibleCount} of {visibleNews.length}</span><span aria-hidden="true">↓</span></button>}</> : <div className="feed-empty"><span className="empty-symbol">◌</span><p>{term ? "No matching headlines. Try a broader search." : section === "Saved" ? "Your reading list is empty. Save a headline from the front page to find it here." : feedStatus.error ? "This feed is temporarily unavailable. Check back shortly." : "No recent headlines in this section yet."}</p></div>}
       </section>
 

@@ -13,7 +13,7 @@
 - Responsive editorial layout, keyboard controls, reduced-motion styles, and visible feed freshness.
 - Persistent feed cache with independent source failures, URL validation and refresh throttling.
 
-The edition checks feeds on visits at most every 15 minutes. It shows up to 24 items per category from the previous seven days. An open page refreshes every 15 minutes and when the reader returns. Publisher excerpts are not generated analysis, and feed updates are not real-time market data.
+The edition checks feeds at most once per Toronto date, at or after 8 AM Eastern Time. It shows up to 24 items per category from the previous seven days. Visits and newsletter runs can complete a delayed morning check but never start another same-day refresh. There is no automatic intraday page reload. Publisher excerpts are not generated analysis, and feed updates are not real-time market data.
 
 ## Launch status
 

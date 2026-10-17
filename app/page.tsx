@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { liveNews, refreshFeedsIfDue, type FeedItem, type FeedStatus } from "@/lib/live-news";
-import AutoRefresh from "./auto-refresh";
 import NewsDesk from "./news-desk";
 import { newsletterConfigured } from "@/lib/newsletter";
 
@@ -20,7 +19,6 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ c
   }
 
   return <>
-    <AutoRefresh />
     <div className="edition-bar"><span><span className="edition-dot" />THE DIGITAL EDITION</span><span>AI · TECHNOLOGY · MARKETS</span></div>
     <header className="masthead"><Link href="/" className="wordmark" aria-label="OmniPulse home">OMNIPULSE<span className="wordmark-dot">.</span></Link><p>Signals worth your attention.</p></header>
     <NewsDesk live={live} feedStatus={feedStatus} newsletterEnabled={newsletterConfigured()}
