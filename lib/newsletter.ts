@@ -1,3 +1,4 @@
+import { dailyBrief, contextGuides, sourceType } from "./briefing";
 import { env } from "cloudflare:workers";
 import { database } from "./content";
 import { refreshFeedsIfDue, type FeedItem } from "./live-news";
@@ -50,11 +51,11 @@ export async function preferencesToken(id:number,email:string){
  const expires=Math.floor(Date.now()/1000)+30*86400;
  return `${id}.${expires}.${await sign(`preferences:${id}:${email}:${expires}`)}`;
 }
-export type PreferenceSubscriber={id:number;email:string;plan:string;preferred_categories:string;stripe_customer_id:string|null};
+export type PreferenceSubscriber={id:number;email:string;plan:string;preferred_categories:string;stripe_customer_id:string|null;delivery_hour:number};
 export async function preferencesSubscriber(token:string):Promise<PreferenceSubscriber|null>{
  const match=/^(\d{1,12})\.(\d{10})\.([0-9a-f]{64})$/.exec(token);
  if(!match||Number(match[2])<Math.floor(Date.now()/1000))return null;
- const id=Number(match[1]),row=await database().prepare("SELECT id,email,plan,preferred_categories,stripe_customer_id FROM subscribers WHERE id=? AND confirmed_at IS NOT NULL").bind(id).first<PreferenceSubscriber>();
+ const id=Number(match[1]),row=await database().prepare("SELECT id,email,plan,preferred_categories,stripe_customer_id,delivery_hour FROM subscribers WHERE id=? AND confirmed_at IS NOT NULL").bind(id).first<PreferenceSubscriber>();
  if(!row)return null;
  const expected=await sign(`preferences:${id}:${row.email}:${match[2]}`);
  return expected===match[3]?row:null;
@@ -68,15 +69,8 @@ export async function unsubscribeByToken(token:string):Promise<boolean>{
 }
 
 function pickStories(items:FeedItem[],plan="free",preferred="AI,Tech,Markets"):FeedItem[]{
- const picks:FeedItem[]=[];
- const chosen=["AI","Tech","Markets"].filter(category=>preferred.split(",").includes(category));
- const categories=plan==="premium"&&chosen.length?chosen:["AI","Tech","Markets"];
- if(plan==="premium"){
-  for(let rank=0;rank<6&&picks.length<6;rank++)for(const category of categories){
-   const item=items.filter(story=>story.category===category)[rank];if(item&&picks.length<6)picks.push(item);
-  }
- }else for(const category of categories){picks.push(...items.filter(item=>item.category===category).slice(0,2));}
- return picks.sort((a,b)=>b.published_at.localeCompare(a.published_at)).slice(0,6);
+ const chosen=preferred.split(",");
+ return dailyBrief(plan==="premium"?items.filter(item=>chosen.includes(item.category)):items,5).map(group=>group.lead);
 }
 type Recipient={id:number;email:string;plan:string;preferred_categories:string};
 export async function deliverDigest(){
@@ -87,9 +81,10 @@ export async function deliverDigest(){
  const today=`${value("year")}-${value("month")}-${value("day")}`;
  const items=(await db.prepare("SELECT * FROM (SELECT *,ROW_NUMBER() OVER(PARTITION BY category ORDER BY published_at DESC) AS category_rank FROM feed_items WHERE published_at>=?) WHERE category_rank<=30 ORDER BY published_at DESC").bind(new Date(Date.now()-7*86400000).toISOString()).all<FeedItem>()).results;
  if(!items.length)return {date:today,sent:0,failed:0,remaining:false,reason:"No recent headlines"};
+ const hour=Number(new Intl.DateTimeFormat("en-US",{timeZone:"America/Toronto",hour:"numeric",hourCycle:"h23"}).format(new Date()));
  const retryAfter=new Date(Date.now()-60*60000).toISOString(),staleAfter=new Date(Date.now()-20*60000).toISOString();
- const candidates=(await db.prepare("SELECT s.id,s.email,s.plan,s.preferred_categories FROM subscribers s LEFT JOIN newsletter_deliveries d ON d.subscriber_id=s.id AND d.delivery_date=? WHERE s.confirmed_at IS NOT NULL AND s.plan IN ('free','premium') AND (d.id IS NULL OR (d.status='failed' AND d.attempted_at<?) OR (d.status='sending' AND d.attempted_at<?)) ORDER BY s.id LIMIT 26")
-  .bind(today,retryAfter,staleAfter).all<Recipient>()).results;
+ const candidates=(await db.prepare("SELECT s.id,s.email,s.plan,s.preferred_categories FROM subscribers s LEFT JOIN newsletter_deliveries d ON d.subscriber_id=s.id AND d.delivery_date=? WHERE s.confirmed_at IS NOT NULL AND s.plan IN ('free','premium') AND s.delivery_hour<=? AND (d.id IS NULL OR (d.status='failed' AND d.attempted_at<?) OR (d.status='sending' AND d.attempted_at<?)) ORDER BY s.id LIMIT 26")
+  .bind(today,hour,retryAfter,staleAfter).all<Recipient>()).results;
  let sent=0,failed=0;
  for(const subscriber of candidates.slice(0,25)){
   const stories=pickStories(items,subscriber.plan,subscriber.preferred_categories);
@@ -106,9 +101,11 @@ export async function deliverDigest(){
   const oneClick=`${c.siteUrl}/api/newsletter/one-click?token=${encodeURIComponent(token)}`;
   const preferences=`${c.siteUrl}/preferences?token=${encodeURIComponent(await preferencesToken(subscriber.id,subscriber.email))}`;
   const title=`OmniPulse ${subscriber.plan==="premium"?"Focus":"Daily"} · ${new Date().toLocaleDateString("en-US",{timeZone:"America/Toronto",month:"long",day:"numeric"})}`;
-  const rows=stories.map(item=>`<tr><td style="padding:18px 0;border-bottom:1px solid #e4e1d8"><small style="color:#ba4b30">${escapeHtml(item.category.toUpperCase())} · ${escapeHtml(item.source)} · ${escapeHtml(item.published_at.slice(0,10))}</small><h2 style="font:700 22px Georgia,serif;margin:7px 0"><a style="color:#17212d" href="${escapeHtml(item.url)}">${escapeHtml(item.title)}</a></h2>${item.summary?`<p style="margin:0;color:#5c6465">${escapeHtml(item.summary)}${item.summary.length>=240?"…":""}</p>`:""}</td></tr>`).join("");
-  const html=`<div style="font:16px/1.6 Arial,sans-serif;color:#17212d;max-width:650px;margin:auto"><p style="color:#ba4b30;font-weight:bold;letter-spacing:.12em">${subscriber.plan==="premium"?"YOUR TOPIC EDITION":"THE MORNING EDITION"}</p><h1 style="font:700 46px Georgia,serif;margin:0">OMNIPULSE.</h1><p>${stories.length} source-linked reads ${subscriber.plan==="premium"?`in ${escapeHtml(subscriber.preferred_categories.replaceAll(",",", "))}`:"across AI, technology and markets"}. Excerpts come from publisher feeds.</p><table style="border-collapse:collapse;width:100%">${rows}</table><p><a href="${c.siteUrl}">Explore the full edition</a> · <a href="${escapeHtml(preferences)}">Manage topics</a></p><hr><small>OmniPulse · ${escapeHtml(c.address)} · Contact: ${escapeHtml(c.contact)}<br><a href="${escapeHtml(leave)}">Unsubscribe</a></small></div>`;
-  const plain=`${title}\n\n`+stories.map(item=>`${item.category} · ${item.source} · ${item.published_at.slice(0,10)}\n${item.title}\n${item.summary}\n${item.url}`).join("\n\n")+`\n\nExplore: ${c.siteUrl}\nManage topics: ${preferences}\nUnsubscribe: ${leave}\nOmniPulse · ${c.address} · ${c.contact}`;
+  const rows=stories.map(item=>`<tr><td style="padding:18px 0;border-bottom:1px solid #e4e1d8"><small style="color:#ba4b30">${escapeHtml(item.category.toUpperCase())} · ${escapeHtml(sourceType(item.source))} · ${escapeHtml(item.source)} · ${escapeHtml(item.published_at.slice(0,10))}</small><h2 style="font:700 22px Georgia,serif;margin:7px 0"><a style="color:#17212d" href="${escapeHtml(item.url)}">${escapeHtml(item.title)}</a></h2>${item.summary?`<p style="margin:0;color:#5c6465">${escapeHtml(item.summary)}${item.summary.length>=240?"…":""}</p>`:""}</td></tr>`).join("");
+  const guide=contextGuides[stories[0].category];
+  const essentials=stories.slice(0,3).map(item=>`<li style="margin:10px 0"><a href="${escapeHtml(item.url)}">${escapeHtml(item.title)}</a></li>`).join("");
+  const html=`<div lang="en" style="font:16px/1.6 Arial,sans-serif;color:#17212d;max-width:650px;margin:auto;padding:24px;background:#fffdf9"><p style="color:#ba4b30;font-weight:bold;letter-spacing:.12em">${subscriber.plan==="premium"?"YOUR TOPIC EDITION":"THE MORNING EDITION"}</p><h1 style="font:700 46px Georgia,serif;margin:0">OMNIPULSE.</h1><p>Understand what changed. Make room for your day.</p><h2 style="font:700 25px Georgia,serif">The 30-second edition</h2><ol>${essentials}</ol><h2 style="font:700 25px Georgia,serif">Your essential briefing</h2><p>${stories.length} source-linked reads ${subscriber.plan==="premium"?`in ${escapeHtml(subscriber.preferred_categories.replaceAll(",",", "))}`:"across AI, technology and markets"}. Excerpts come from publisher feeds.</p><table role="presentation" style="border-collapse:collapse;width:100%">${rows}</table><h2 style="font:700 25px Georgia,serif">One useful explanation</h2><h3>${escapeHtml(guide.title)}</h3><p>${escapeHtml(guide.body)}</p><p><a href="${guide.url}">${escapeHtml(guide.source)}</a></p><h2 style="font:700 25px Georgia,serif">What to watch</h2><p>${escapeHtml(guide.watch)}</p><p style="font-size:12px">This is general background, not analysis of the selected stories. Stories are selected automatically for recency and topic variety. Excerpts are supplied by publishers.</p><p><a href="${c.siteUrl}">Explore the full edition</a> · <a href="${escapeHtml(preferences)}">Manage topics</a></p><hr><small>OmniPulse · ${escapeHtml(c.address)} · Contact: ${escapeHtml(c.contact)}<br><a href="${escapeHtml(leave)}">Unsubscribe</a></small></div>`;
+  const plain=`${title}\n\nTHE 30-SECOND EDITION\n${stories.slice(0,3).map(item=>item.title+"\n"+item.url).join("\n\n")}\n\nYOUR ESSENTIAL BRIEFING\n\n`+stories.map(item=>`${item.category} · ${item.source} · ${item.published_at.slice(0,10)}\n${item.title}\n${item.summary}\n${item.url}`).join("\n\n")+`\n\nONE USEFUL EXPLANATION\n${guide.title}\n${guide.body}\n${guide.url}\n\nWHAT TO WATCH\n${guide.watch}\nGeneral background, not story-specific analysis. Publisher excerpts; automatic selection for recency and topic variety.\n\nExplore: ${c.siteUrl}\nManage topics: ${preferences}\nUnsubscribe: ${leave}\nOmniPulse · ${c.address} · ${c.contact}`;
   try {
    const id=await sendEmail(subscriber.email,title,html,plain,`omnipulse-${today}-${subscriber.id}`,oneClick);
    await db.prepare("UPDATE newsletter_deliveries SET status='sent',sent_at=?,provider_id=? WHERE subscriber_id=? AND delivery_date=?").bind(new Date().toISOString(),id,subscriber.id,today).run();sent++;

@@ -59,10 +59,22 @@ let result=await newsletter.deliverDigest();assert.equal(result.sent,0,"Unconfir
 const token=new URL(mail[0].text.match(/https:\/\/example\.test\/newsletter\/confirm\?token=\S+/)[0]).searchParams.get("token");
 assert.equal((await confirm.POST(request("/api/newsletter/confirm",{token}))).status,200);
 assert.equal((await confirm.POST(request("/api/newsletter/confirm",{token}))).status,410,"Confirmation links are single use");
+sql.prepare("UPDATE subscribers SET delivery_hour=0").run(); // Make delivery eligible independent of the test runner clock.
 const date=new Date().toISOString();
 sql.prepare("INSERT INTO feed_items (url,title,summary,category,source,published_at,fetched_at) VALUES (?,?,?,?,?,?,?)").run("https://publisher.example.test/story","Source headline","A publisher excerpt","AI","Publisher",date,date);
+sql.prepare("UPDATE subscribers SET delivery_hour=24").run();
+result=await newsletter.deliverDigest();assert.equal(result.sent,0,"Later delivery preferences must not send early");
+sql.prepare("UPDATE subscribers SET delivery_hour=0").run();
 result=await newsletter.deliverDigest();assert.equal(result.sent,1);assert.equal(mail.length,2);
 assert.equal(mail[1].reply_to,env.NEWSLETTER_CONTACT_EMAIL);
+assert.ok(mail[1].html.includes('The 30-second edition'));assert.ok(mail[1].html.includes('One useful explanation'));assert.ok(mail[1].html.includes('role="presentation"'));
+const preferenceRoute=load(path.join(root,"app/api/preferences/route.ts"));
+const preferenceToken=await newsletter.preferencesToken(1,"reader@example.test");
+assert.equal((await preferenceRoute.POST(request("/api/preferences",{token:preferenceToken,categories:["Tech"],deliveryHour:13}))).status,400);
+assert.equal((await preferenceRoute.POST(request("/api/preferences",{token:"invalid",categories:["Tech"],deliveryHour:10}))).status,403);
+assert.equal((await preferenceRoute.POST(request("/api/preferences",{token:preferenceToken,categories:["Tech"],deliveryHour:10}))).status,200);
+assert.equal(sql.prepare("SELECT delivery_hour FROM subscribers WHERE id=1").get().delivery_hour,10);
+sql.prepare("UPDATE subscribers SET delivery_hour=0").run();
 assert.ok(mail[1].text.includes("https://publisher.example.test/story"));
 assert.equal(mail[1].headers["List-Unsubscribe-Post"],"List-Unsubscribe=One-Click");
 assert.equal(sql.prepare("SELECT status FROM newsletter_deliveries").get().status,"sent");

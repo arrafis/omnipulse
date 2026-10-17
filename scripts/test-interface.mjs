@@ -14,7 +14,11 @@ async function load(path, stubs) {
   vm.runInNewContext(outputText, { exports, require: name => name in stubs ? stubs[name] : require(name), Response, Date, URL, console });
   return exports;
 }
+const briefingHelpers=await load("../lib/briefing.ts",{});
+const readingHelpers=await load("../lib/reading-list.ts",{});
+const briefingComponent=await load("../app/briefing-experience.tsx",{"@/lib/briefing":briefingHelpers,"@/lib/reading-list":readingHelpers});
 const desk = await load("../app/news-desk.tsx", {
+  "./briefing-experience": {default: () => React.createElement("section", null, "Your briefing")},
   "./subscribe": {default: () => React.createElement("div", null, "Email setup")},
   "@/lib/reading-list": {READING_LIST_KEY: "test", readReadingList: () => []},
 });
@@ -31,6 +35,10 @@ assert.ok(render("Saved").includes("Your reading list is empty"));
 assert.ok(!render("Saved").includes("The deeper read"));
 assert.ok(render("invalid").includes("The front page"));
 console.log("PASS rendered categories, search, saved empty state and accessible save controls");
+
+const briefingHtml=renderToStaticMarkup(React.createElement(briefingComponent.default,{items:live}));
+assert.ok(briefingHtml.includes("Your briefing"));assert.ok(briefingHtml.includes("Since your last visit"));assert.ok(briefingHtml.includes("From the publisher"));assert.ok(briefingHtml.includes("Mark edition read"));assert.ok(briefingHtml.includes("Report an issue"));assert.ok(briefingHtml.includes("not story-specific analysis"));
+console.log("PASS essential briefing rendering, source transparency and reading controls");
 
 let refreshes = 0, sandboxCalls = 0;
 const mcp = await load("../app/mcp/route.ts", {

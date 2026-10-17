@@ -2,6 +2,9 @@ import { database, type Category } from "./content";
 
 import { parseFeed, type Feed } from "./rss";
 export const feeds: Feed[] = [
+  {name:"BBC News Technology",category:"Tech",url:"https://feeds.bbci.co.uk/news/technology/rss.xml",host:"bbc.co.uk"},
+  {name:"BBC News Business",category:"Markets",url:"https://feeds.bbci.co.uk/news/business/rss.xml",host:"bbc.co.uk"},
+  {name:"Rest of World",category:"Tech",url:"https://restofworld.org/feed/",host:"restofworld.org"},
   {name:"OpenAI News",category:"AI",url:"https://openai.com/news/rss.xml",host:"openai.com"},
   {name:"Microsoft Blog",category:"Tech",url:"https://blogs.microsoft.com/feed/",host:"blogs.microsoft.com"},
   {name:"The Verge",category:"Tech",url:"https://www.theverge.com/rss/index.xml",host:"theverge.com"},

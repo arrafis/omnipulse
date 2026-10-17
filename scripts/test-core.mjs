@@ -52,3 +52,17 @@ check("Reading list caps storage at 100 stories", () => {
   assert.equal(readReadingList(JSON.stringify(Array.from({length:120}, (_,i) => ({...story, url:`https://example.com/${i}`})))).length, 100);
 });
 console.log(`${count} core checks passed.`);
+
+const {groupStories,dailyBrief,fingerprint}=await moduleAt("../lib/briefing.ts");
+const make=(id,title,category="Tech",source="Publisher",published_at=now)=>({...story,id,url:`https://example.com/${id}`,title,category,source,published_at,fetched_at:now});
+check("Story grouping combines close headline matches without merging general topics",()=>{
+ const groups=groupStories([make(1,"Microsoft launches new security tools for enterprise cloud customers"),make(2,"Microsoft launches security tools for enterprise cloud customers","Tech","Other"),make(3,"Microsoft reports quarterly earnings growth in cloud services"),make(4,"Microsoft launches security tools for enterprise cloud customers","Tech","Old","2026-10-01T00:00:00Z")]);
+ assert.equal(groups.length,3);assert.equal(groups[0].sources.length,2);
+});
+check("Briefing stays finite, represents all available desks and removes exact duplicates",()=>{
+ const input=[make(1,"One story","AI"),make(2,"One story","AI","Other"),make(3,"Market outlook","Markets"),...Array.from({length:12},(_,i)=>make(i+10,`Technology story ${i}`,"Tech",`Publisher ${i}`))];
+ const result=dailyBrief(input);assert.equal(result.length,5);assert.equal(new Set(result.map(g=>g.lead.category)).size,3);assert.equal(result.filter(g=>g.lead.title==="One story").length,1);
+});
+check("Routine fetch timestamps never create false content updates",()=>{
+ const item=make(1,"A headline");assert.equal(fingerprint(item),fingerprint({...item,fetched_at:"2026-10-15T00:00:00Z"}));assert.notEqual(fingerprint(item),fingerprint({...item,summary:"Publisher correction"}));
+});

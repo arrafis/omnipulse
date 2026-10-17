@@ -1,0 +1,1 @@
+ALTER TABLE `subscribers` ADD `delivery_hour` integer DEFAULT 8 NOT NULL;
