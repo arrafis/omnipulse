@@ -8,7 +8,7 @@ async function moduleAt(path) {
   const { outputText } = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ES2022 } });
   return import(`data:text/javascript;base64,${Buffer.from(outputText).toString("base64")}`);
 }
-const { parseFeed } = await moduleAt("../lib/rss.ts");
+const { parseFeed, storyCategory } = await moduleAt("../lib/rss.ts");
 const { readReadingList } = await moduleAt("../lib/reading-list.ts");
 const feed = { name: "Example", category: "AI", host: "example.com", url: "https://example.com/rss" };
 const now = "2026-10-14T01:00:00.000Z";
@@ -43,6 +43,11 @@ check("Publisher excerpts remain bounded", () => {
 check("AI reports from mixed technology feeds enter the AI desk",()=>{
  assert.equal(parseFeed(rss(undefined,undefined,'Anthropic launches Claude update'),{...feed,category:'Tech'},now)[0].category,'AI');
  assert.equal(parseFeed(rss(undefined,undefined,'New phone display'),{...feed,category:'Tech'},now)[0].category,'Tech');
+ for(const title of ['A machine learning breakthrough','Gemini adds a feature','Chatbots enter the workplace','Neural networks improve forecasts'])assert.equal(storyCategory('Tech',title,''),'AI');
+ for(const title of ['A new quantum processor','Battery storage breakthrough','Satellite internet expands','Cybersecurity patch released'])assert.equal(storyCategory('Tech',title,''),'Tech');
+ assert.equal(storyCategory('Medical','AI screening study',''),'Medical');
+ assert.equal(storyCategory('Markets','AI stock market reaction',''),'Markets');
+ assert.equal(storyCategory('Tech','A new benchmark','','https://example.com/ai/report'),'AI');
 });
 const story = { url: "https://example.com/a", title: "Saved story", category: "AI", source: "Example", published_at: now, summary: "Summary" };
 check("Corrupt reading-list storage recovers to an empty list", () => {

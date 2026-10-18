@@ -1,6 +1,6 @@
 import { database, type Category } from "./content";
 
-import { parseFeed, type Feed } from "./rss";
+import { parseFeed, storyCategory, type Feed } from "./rss";
 import { refreshWindow } from "./edition-clock";
 import {isPolicyImpact} from './policy-impact';
 import {medicalLaunchItems} from './medical-launch';
@@ -42,6 +42,10 @@ export async function refreshFeedsIfDue():Promise<void> {
   const claimed=await db.prepare("UPDATE feed_sync SET checked_at=?,next_at=?,error='Refresh in progress' WHERE id=1 AND (checked_at IS NULL OR checked_at<? OR (error IS NOT NULL AND (next_at<=? OR (error!='Refresh in progress' AND next_at>=?))))")
    .bind(now,new Date(current.getTime()+5*60000).toISOString(),window.start,now,window.next).run();
   if(!claimed.meta.changes)return;
+  // Apply current desk rules to older stored technology stories as well as new entries.
+  const stored=(await db.prepare("SELECT id,title,summary,url FROM feed_items WHERE category='Tech'").all<Pick<FeedItem,'id'|'title'|'summary'|'url'>>()).results;
+  const moves=stored.filter(item=>storyCategory('Tech',item.title,item.summary,item.url)==='AI');
+  if(moves.length)await db.batch(moves.map(item=>db.prepare("UPDATE feed_items SET category='AI' WHERE id=?").bind(item.id)));
   const failedNames=previous?.error?.split('; ').map(x=>x.replace(/ unavailable$/,''))||[];
   const pending=retry&&failedNames.some(name=>feeds.some(f=>f.name===name))?feeds.filter(f=>failedNames.includes(f.name)):feeds;
   const results=await Promise.allSettled(pending.map(async feed=>{

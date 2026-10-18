@@ -1,5 +1,11 @@
 import type { Category } from "./content";
 export type Feed = { name: string; category: Category; url: string; host: string };
+// Medical and Markets keep their specialist desks; AI technology has its own desk.
+export function storyCategory(category:Category,title:string,summary:string,url=''):Category {
+ if(category!=='Tech')return category;
+ const text=title+' '+summary;
+ return /\b(ai|artificial intelligence|machine learning|deep learning|neural networks?|generative|chatbots?|chatgpt|openai|anthropic|claude|deepmind|gemini|copilot|llms?|large language models?|language models?|diffusion models?)\b/i.test(text)||/\/(?:ai|artificial-intelligence|machine-learning)\//i.test(url)?'AI':'Tech';
+}
 function decodeCodePoint(raw:string):string {
  const hex=raw[0].toLowerCase()==="x";
  const code=parseInt(hex?raw.slice(1):raw,hex?16:10);
@@ -30,7 +36,7 @@ export function parseFeed(xml:string,feed:Feed,now:string) {
     if(url.protocol!=="https:"||!(url.hostname===feed.host||url.hostname.endsWith(`.${feed.host}`))||!title||Number.isNaN(date.getTime())||date.getTime()>new Date(now).getTime()+3600000||date.getTime()<new Date(now).getTime()-30*86400000)return [];
     url.hash="";
     const author=clean(field(item,"dc:creator")||field(item,"author")).slice(0,120);
-    const category:Category=feed.category==='Tech'&&/\b(artificial intelligence|generative ai|ai|chatgpt|openai|anthropic|claude|deepmind|llms?)\b/i.test(title+' '+summary)?'AI':feed.category;
+    const category=storyCategory(feed.category,title,fullSummary,url.href);
     // Shared sections use one publisher identity for deduplication and outage filtering.
     const publisher=feed.name;
     return [{url:url.href,title,summary,category,source:publisher+(author?' · '+author:''),published_at:date.toISOString(),fetched_at:now}];
