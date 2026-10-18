@@ -40,6 +40,10 @@ check("Publisher excerpts remain bounded", () => {
   const xml = rss().replace("A useful <b>publisher</b> summary.", "long excerpt ".repeat(100));
   assert.ok(parseFeed(xml, feed, now)[0].summary.length <= 240);
 });
+check("AI reports from mixed technology feeds enter the AI desk",()=>{
+ assert.equal(parseFeed(rss(undefined,undefined,'Anthropic launches Claude update'),{...feed,category:'Tech'},now)[0].category,'AI');
+ assert.equal(parseFeed(rss(undefined,undefined,'New phone display'),{...feed,category:'Tech'},now)[0].category,'Tech');
+});
 const story = { url: "https://example.com/a", title: "Saved story", category: "AI", source: "Example", published_at: now, summary: "Summary" };
 check("Corrupt reading-list storage recovers to an empty list", () => {
   for (const raw of [null, "broken", "{}", "null", '[null,42,"bad"]']) assert.deepEqual(readReadingList(raw), []);

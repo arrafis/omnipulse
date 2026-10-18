@@ -5,6 +5,13 @@ import { refreshWindow } from "./edition-clock";
 import {isPolicyImpact} from './policy-impact';
 import {medicalLaunchItems} from './medical-launch';
 export const feeds: Feed[] = [
+  {name:"Google DeepMind",category:"AI",url:"https://deepmind.google/blog/rss.xml",host:"deepmind.google"},
+  {name:"MIT News AI",category:"AI",url:"https://news.mit.edu/rss/topic/artificial-intelligence2",host:"news.mit.edu"},
+  {name:"Hugging Face",category:"AI",url:"https://huggingface.co/blog/feed.xml",host:"huggingface.co"},
+  {name:"TechCrunch",category:"AI",url:"https://techcrunch.com/category/artificial-intelligence/feed/",host:"techcrunch.com"},
+  {name:"Ars Technica",category:"Tech",url:"https://feeds.arstechnica.com/arstechnica/index",host:"arstechnica.com"},
+  {name:"Bank of Canada",category:"Markets",url:"https://www.bankofcanada.ca/feed/",host:"bankofcanada.ca"},
+  {name:"WHO",category:"Medical",url:"https://www.who.int/rss-feeds/news-english.xml",host:"who.int"},
   {name:"FTC",category:"Tech",url:"https://www.ftc.gov/feeds/press-release.xml",host:"ftc.gov"},
   {name:"UK DSIT",category:"Tech",url:"https://www.gov.uk/government/organisations/department-for-science-innovation-and-technology.atom",host:"gov.uk"},
   {name:"BBC News Health",category:"Medical",url:"https://feeds.bbci.co.uk/news/health/rss.xml",host:"bbc.co.uk"},
@@ -47,7 +54,7 @@ export async function refreshFeedsIfDue():Promise<void> {
     const parsed=parseFeed(xml,feed,now);
     const items=["FTC","UK DSIT"].includes(feed.name)?parsed.filter(isPolicyImpact):parsed;
     // A valid feed with no recent entries is a successful check, not an outage.
-    if(items.length)await db.batch(items.map(item=>db.prepare("INSERT INTO feed_items (url,title,summary,category,source,published_at,fetched_at) VALUES (?,?,?,?,?,?,?) ON CONFLICT(url) DO UPDATE SET summary=excluded.summary,title=excluded.title,fetched_at=excluded.fetched_at")
+    if(items.length)await db.batch(items.map(item=>db.prepare("INSERT INTO feed_items (url,title,summary,category,source,published_at,fetched_at) VALUES (?,?,?,?,?,?,?) ON CONFLICT(url) DO UPDATE SET summary=excluded.summary,title=excluded.title,category=excluded.category,source=excluded.source,fetched_at=excluded.fetched_at")
      .bind(item.url,item.title,item.summary,item.category,item.source,item.published_at,item.fetched_at)));
     return items.length;
    }catch(error){lastError=error;}
@@ -67,8 +74,10 @@ export async function liveNews(category?:Category,search?:string):Promise<{items
   if(category){where.push("category = ?");params.push(category);}
   if(search){where.push("title LIKE ?");params.push(`%${search.replace(/[\\%_]/g,"")}%`);}
   const items=(await db.prepare(`SELECT id,url,title,summary,category,source,published_at,fetched_at FROM (
-    SELECT *,ROW_NUMBER() OVER (PARTITION BY category ORDER BY published_at DESC) AS category_rank
-    FROM feed_items WHERE ${where.join(" AND ")}
+    SELECT *,ROW_NUMBER() OVER (PARTITION BY category ORDER BY publisher_rank,published_at DESC) AS category_rank FROM (
+      SELECT *,ROW_NUMBER() OVER (PARTITION BY category,CASE WHEN instr(source,' · ')>0 THEN substr(source,1,instr(source,' · ')-1) ELSE source END ORDER BY published_at DESC) AS publisher_rank
+      FROM feed_items WHERE ${where.join(" AND ")}
+    )
    ) WHERE category_rank<=24 ORDER BY published_at DESC LIMIT 96`).bind(...params).all<FeedItem>()).results;
   const status=(await db.prepare("SELECT checked_at,success_at,error FROM feed_sync WHERE id=1").first<FeedStatus>())||{checked_at:null,success_at:null,error:null};
   // A dated launch edition keeps the new desk useful before its first morning sync.

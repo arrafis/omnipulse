@@ -40,6 +40,13 @@ failed.clear();instant='2026-10-21T12:30:00Z';before=calls;await live.refreshFee
 instant='2026-10-22T12:00:00Z';attempts.clear();transient=true;before=calls;await live.refreshFeedsIfDue();assert.equal(calls-before,2*live.feeds.length,'Transient failures recover in the same refresh');assert.equal(sql.prepare('SELECT error FROM feed_sync').get().error,null);transient=false;
 instant='2026-10-23T12:00:00Z';empty=true;await live.refreshFeedsIfDue();assert.equal(sql.prepare('SELECT error FROM feed_sync').get().error,null,'A valid quiet feed does not produce a false outage');empty=false;
 sql.prepare("UPDATE feed_sync SET error='FTC unavailable',next_at='2026-10-24T12:00:00.000Z'").run();before=calls;await live.refreshFeedsIfDue();assert.equal(calls-before,1,'Previously deferred failures can recover immediately after upgrade');
+sql.exec('DELETE FROM feed_items');
+const insert=sql.prepare('INSERT INTO feed_items (url,title,summary,category,source,published_at,fetched_at) VALUES (?,?,?,?,?,?,?)');
+for(let i=0;i<30;i++)insert.run(`https://openai.com/${i}`,`Announcement ${i}`,'Summary','AI',`OpenAI News · Author ${i}`,`2026-10-23T11:${String(i).padStart(2,'0')}:00Z`,instant);
+for(const source of ['MIT News AI','TechCrunch','Google DeepMind'])insert.run(`https://example.com/${encodeURIComponent(source)}`,'Another AI story','Summary','AI',source,'2026-10-22T12:00:00Z',instant);
+const selected=await live.liveNews('AI');
+assert.equal(selected.items.length,24);
+assert.equal(new Set(selected.items.map(i=>i.source.split(' · ')[0])).size,4,'High-volume publishers and author bylines do not crowd out other sources');
 assert.equal(clock.refreshWindow(new Date('2026-10-31T12:00:00Z')).next,'2026-11-01T13:00:00.000Z','Fall DST keeps 8 AM local');
 assert.equal(clock.refreshWindow(new Date('2027-03-13T13:00:00Z')).next,'2027-03-14T12:00:00.000Z','Spring DST keeps 8 AM local');
 sql.close();

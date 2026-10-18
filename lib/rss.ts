@@ -30,7 +30,10 @@ export function parseFeed(xml:string,feed:Feed,now:string) {
     if(url.protocol!=="https:"||!(url.hostname===feed.host||url.hostname.endsWith(`.${feed.host}`))||!title||Number.isNaN(date.getTime())||date.getTime()>new Date(now).getTime()+3600000||date.getTime()<new Date(now).getTime()-30*86400000)return [];
     url.hash="";
     const author=clean(field(item,"dc:creator")||field(item,"author")).slice(0,120);
-    return [{url:url.href,title,summary,category:feed.category,source:feed.name+(author?' · '+author:''),published_at:date.toISOString(),fetched_at:now}];
+    const category:Category=feed.category==='Tech'&&/\b(artificial intelligence|generative ai|ai|chatgpt|openai|anthropic|claude|deepmind|llms?)\b/i.test(title+' '+summary)?'AI':feed.category;
+    // Shared sections use one publisher identity for deduplication and outage filtering.
+    const publisher=feed.name;
+    return [{url:url.href,title,summary,category,source:publisher+(author?' · '+author:''),published_at:date.toISOString(),fetched_at:now}];
   });
 }
 
