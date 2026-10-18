@@ -1,5 +1,6 @@
 import {allEvents} from "./events";
 import {eventHighlight} from "./event-types";
+import {editionDay} from './edition-clock';
 import { dailyBrief } from "./briefing";
 import {policyDigest} from "./policy-impact";
 import {storyContexts} from "./story-context";
@@ -84,7 +85,15 @@ export async function deliverDigest(){
  const parts=new Intl.DateTimeFormat("en-US",{timeZone:"America/Toronto",year:"numeric",month:"2-digit",day:"2-digit"}).formatToParts(new Date());
  const value=(type:string)=>parts.find(part=>part.type===type)?.value||"";
  const today=`${value("year")}-${value("month")}-${value("day")}`;
- const items=(await db.prepare("SELECT * FROM (SELECT *,ROW_NUMBER() OVER(PARTITION BY category ORDER BY published_at DESC) AS category_rank FROM feed_items WHERE published_at>=?) WHERE category_rank<=30 ORDER BY published_at DESC").bind(new Date(Date.now()-7*86400000).toISOString()).all<FeedItem>()).results;
+ const sync=await db.prepare('SELECT checked_at,success_at,error FROM feed_sync WHERE id=1').first<{checked_at:string|null;success_at:string|null;error:string|null}>();
+ const issues=sync?.error?.split('; ').filter(Boolean)||[];
+ // A running/unknown check must not turn yesterday's cached headlines into today's email.
+ if(!sync?.success_at||editionDay(new Date(sync.success_at))!==today||issues.some(issue=>!issue.endsWith(' unavailable')))
+  return {date:today,sent:0,failed:0,remaining:false,reason:'Waiting for source checks'};
+ const unavailable=new Set(issues.map(issue=>issue.replace(/ unavailable$/,'')));
+ const recent=(await db.prepare("SELECT * FROM feed_items WHERE published_at>=? ORDER BY published_at DESC").bind(new Date(Date.now()-7*86400000).toISOString()).all<FeedItem>()).results;
+ // Stored bylines use 'Publisher · Author'; all articles from a failed publisher are excluded.
+ const items=recent.filter(item=>!unavailable.has(item.source.split(' · ')[0]));
  if(!items.length)return {date:today,sent:0,failed:0,remaining:false,reason:"No recent headlines"};
  const hour=Number(new Intl.DateTimeFormat("en-US",{timeZone:"America/Toronto",hour:"numeric",hourCycle:"h23"}).format(new Date()));
  const retryAfter=new Date(Date.now()-60*60000).toISOString(),staleAfter=new Date(Date.now()-20*60000).toISOString();
@@ -96,6 +105,7 @@ export async function deliverDigest(){
  for(const subscriber of candidates.slice(0,25)){
   const stories=pickStories(items,subscriber.plan,subscriber.preferred_categories);
   if(!stories.length){
+   if(unavailable.size)continue; // Leave eligible for a later run if the preferred source recovers.
    await db.prepare("INSERT OR IGNORE INTO newsletter_deliveries (subscriber_id,delivery_date,status,attempted_at) VALUES (?,?,'skipped',?)").bind(subscriber.id,today,new Date().toISOString()).run();
    continue;
   }

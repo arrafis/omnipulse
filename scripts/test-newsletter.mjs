@@ -61,12 +61,18 @@ assert.equal((await confirm.POST(request("/api/newsletter/confirm",{token}))).st
 assert.equal((await confirm.POST(request("/api/newsletter/confirm",{token}))).status,410,"Confirmation links are single use");
 sql.prepare("UPDATE subscribers SET delivery_hour=0").run(); // Make delivery eligible independent of the test runner clock.
 const date=new Date().toISOString();
+sql.prepare("INSERT INTO feed_sync (id,checked_at,success_at,next_at,error) VALUES (1,?,?,?,?)").run(date,date,date,'FTC unavailable');
 sql.prepare("INSERT INTO feed_items (url,title,summary,category,source,published_at,fetched_at) VALUES (?,?,?,?,?,?,?)").run("https://publisher.example.test/story","Source headline","A publisher excerpt","AI","Publisher",date,date);
+sql.prepare("INSERT INTO feed_items (url,title,summary,category,source,published_at,fetched_at) VALUES (?,?,?,?,?,?,?)").run('https://www.ftc.gov/blocked','FTC AI enforcement announcement','A cached excerpt that must not be sent','Tech','FTC · Staff',date,date);
+sql.prepare("UPDATE feed_sync SET error='Refresh in progress'").run();
+result=await newsletter.deliverDigest();assert.equal(result.sent,0);assert.equal(mail.length,1,'No email while source checks are in progress');
+sql.prepare("UPDATE feed_sync SET error='FTC unavailable'").run();
 sql.prepare("UPDATE subscribers SET delivery_hour=24").run();
 result=await newsletter.deliverDigest();assert.equal(result.sent,0,"Later delivery preferences must not send early");
 sql.prepare("UPDATE subscribers SET delivery_hour=0").run();
 result=await newsletter.deliverDigest();assert.equal(result.sent,1);assert.equal(mail.length,2);
 assert.equal(mail[1].reply_to,env.NEWSLETTER_CONTACT_EMAIL);
+assert.ok(!mail[1].html.includes('https://www.ftc.gov/blocked'));assert.ok(!mail[1].text.includes('FTC AI enforcement announcement'),'Unavailable publisher and its bylines must be excluded');
 assert.ok(mail[1].html.includes('The 30-second edition'));assert.ok(mail[1].html.includes('ONE USEFUL EXPLANATION'));assert.ok(mail[1].html.includes('role="presentation"'));
 assert.ok(mail[1].html.includes('<html lang="en" dir="ltr">'));assert.ok(mail[1].html.includes('<title>'));assert.ok(mail[1].html.includes('prefers-color-scheme:dark'));assert.ok(mail[1].html.includes('/learn/'));
 const preferenceRoute=load(path.join(root,"app/api/preferences/route.ts"));
