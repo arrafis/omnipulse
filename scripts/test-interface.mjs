@@ -70,11 +70,10 @@ for(const lesson of baseLessons){
  assert.ok(html.includes(lesson.guide.terms[0][0]));
 }
 console.log('PASS all lesson pages render teaching sections, glossary and both practice answers');
-const coverage=await load('../lib/course-coverage.ts',{});
-const paths=await load('../app/learn/study-paths/page.tsx',{'@/lib/learning-base':{baseLessons},'@/lib/course-coverage':coverage});
-const pathsHtml=renderToStaticMarkup(React.createElement(paths.default));
-for(const code of ['710','711','712','713','714','715'])assert.ok(pathsHtml.includes('MMGMT '+code));
-assert.ok(pathsHtml.includes('/learn/optimization-chance-recourse'));assert.ok(pathsHtml.includes('not an official McMaster course'));
+const paths=await load('../app/learn/study-paths/page.tsx',{'next/navigation':{redirect:url=>{throw new Error('redirect:'+url);}}});
+assert.throws(()=>paths.default(),/redirect:\/learn/);
+const learnSource=await readFile(new URL('../app/learn/page.tsx',import.meta.url),'utf8');
+assert.ok(!/coursework|course-aligned|MMGMT|McMaster/.test(learnSource));
 
 let refreshes = 0, sandboxCalls = 0;
 const mcp = await load("../app/mcp/route.ts", {
