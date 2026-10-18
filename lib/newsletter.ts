@@ -1,3 +1,5 @@
+import {allEvents} from "./events";
+import {eventHighlight} from "./event-types";
 import { dailyBrief } from "./briefing";
 import {policyDigest} from "./policy-impact";
 import {storyContexts} from "./story-context";
@@ -89,6 +91,7 @@ export async function deliverDigest(){
  const candidates=(await db.prepare("SELECT s.id,s.email,s.plan,s.preferred_categories FROM subscribers s LEFT JOIN newsletter_deliveries d ON d.subscriber_id=s.id AND d.delivery_date=? WHERE s.confirmed_at IS NOT NULL AND s.plan IN ('free','premium') AND s.delivery_hour<=? AND (d.id IS NULL OR (d.status='failed' AND d.attempted_at<?) OR (d.status='sending' AND d.attempted_at<?)) ORDER BY s.id LIMIT 26")
   .bind(today,hour,retryAfter,staleAfter).all<Recipient>()).results;
  const contexts=await storyContexts(items);
+ const opportunities=await allEvents().catch(()=>[]);
  let sent=0,failed=0;
  for(const subscriber of candidates.slice(0,25)){
   const stories=pickStories(items,subscriber.plan,subscriber.preferred_categories);
@@ -105,7 +108,7 @@ export async function deliverDigest(){
   const oneClick=`${c.siteUrl}/api/newsletter/one-click?token=${encodeURIComponent(token)}`;
   const preferences=`${c.siteUrl}/preferences?token=${encodeURIComponent(await preferencesToken(subscriber.id,subscriber.email))}`;
   const title=`OmniPulse ${subscriber.plan==="premium"?"Focus":"Daily"} · ${new Date().toLocaleDateString("en-US",{timeZone:"America/Toronto",month:"long",day:"numeric"})}`;
-  const {html,plain}=renderDigest({stories,contexts,title,siteUrl:c.siteUrl,preferences,leave,address:c.address,contact:c.contact,focus:subscriber.plan==="premium"});
+  const {html,plain}=renderDigest({event:eventHighlight(opportunities,subscriber.plan==="premium"?subscriber.preferred_categories.split(","):undefined),stories,contexts,title,siteUrl:c.siteUrl,preferences,leave,address:c.address,contact:c.contact,focus:subscriber.plan==="premium"});
   try {
    const id=await sendEmail(subscriber.email,title,html,plain,`omnipulse-${today}-${subscriber.id}`,oneClick);
    await db.prepare("UPDATE newsletter_deliveries SET status='sent',sent_at=?,provider_id=? WHERE subscriber_id=? AND delivery_date=?").bind(new Date().toISOString(),id,subscriber.id,today).run();sent++;

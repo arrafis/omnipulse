@@ -1,0 +1,10 @@
+import {publicEvents} from '@/lib/events';
+import {eventSeeds} from '@/lib/event-seeds';
+import {upcomingEvents} from '@/lib/event-types';
+import EventCatalog from './event-catalog';
+export const dynamic='force-dynamic';
+export const metadata={title:'Events & Networking | AI conferences, meetups & awards'};
+export default async function Events(){
+ let events=upcomingEvents(eventSeeds),available=true;try{events=await publicEvents();}catch{available=false;}
+ return <><div className="edition-bar"><a href="/">OMNIPULSE</a><span>EVENTS & NETWORKING</span></div><main className="events-wrap" id="main-content"><nav className="learn-nav"><a href="/">← Today’s edition</a><a href="/learn">Keep learning ↗</a></nav><header className="events-hero"><span className="kicker">IDEAS ARE BETTER WITH PEOPLE</span><h1>Find your next<br/><em>conversation.</em></h1><p>AI conferences, summits, community meetups, workshops and award events. Start close to Toronto, explore Canada or find an international or online opportunity.</p><p className="event-disclosure">Selected from organizer pages, with source links and the date we checked. Confirm current availability, eligibility, price and travel plans with the organizer. Listings are informational, not an endorsement; OmniPulse does not sell tickets or submit registrations.</p></header>{!available&&<p role="status">Recent event updates are temporarily unavailable. Showing the dated launch selection.</p>}<EventCatalog events={events}/><aside className="event-method"><h2>A useful calendar, not an endless directory.</h2><p>The morning review checks existing listings for changes and considers new opportunities. Past and cancelled events leave the upcoming view automatically. Prices or registration availability can change between checks. Student filters require explicit student access or rates; approval requirements still apply. Award attendance and nomination opportunities are different—deadlines are labeled when verified.</p><p><a href="mailto:sifatharrafi@gmail.com?subject=OmniPulse%20event%20correction">Suggest an event or report a correction ↗</a></p></aside></main></>;
+}

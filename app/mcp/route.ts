@@ -1,3 +1,4 @@
+import {allEvents,publishEvent} from "@/lib/events";
 import { NextResponse } from "next/server";
 import { identity, isOriginalOwner } from "@/lib/editor-auth";
 import { refreshFeedsIfDue, liveNews } from "@/lib/live-news";
@@ -11,6 +12,8 @@ import {dailyBrief} from '@/lib/briefing';
 export const runtime = "edge";
 
 const tools = [
+{"name": "list_omnipulse_events", "description": "Owner-only: list stored and launch event listings, including past/cancelled records for maintenance. Check official organizer pages before updates. No email or registration.", "inputSchema": {"type": "object", "properties": {}, "additionalProperties": false}},
+{"name": "publish_omnipulse_event", "description": "Owner-only: add/update one researched AI/technology event using its existing slug. Open the official organizer page and its linked registration page first. Supply original plain-text summary, local dates/timezone, audience, verified price/status, official and registration URLs. Use Not confirmed/Check organizer when unclear; never assume free, public admission, student access, or open nominations. Distinguish award nomination deadlines from attendance. Set student_friendly only for explicitly verified student access/rates. checked_at is assigned by the server. Use blank deadline_date when unknown. Set highlight_date to today in Toronto only for a meaningful new opportunity or approaching verified deadline; otherwise blank. Mark cancelled events Cancelled using the same slug. No ticket purchase, registration, contacts or email.", "inputSchema": {"type": "object", "properties": {"event": {"type": "object", "properties": {"slug": {"type": "string"}, "title": {"type": "string"}, "organizer": {"type": "string"}, "start_date": {"type": "string"}, "end_date": {"type": "string"}, "timezone": {"type": "string"}, "time_note": {"type": "string"}, "location": {"type": "string"}, "price_note": {"type": "string"}, "audience": {"type": "string"}, "summary": {"type": "string"}, "official_url": {"type": "string"}, "registration_url": {"type": "string"}, "deadline_date": {"type": "string"}, "deadline_note": {"type": "string"}, "highlight_date": {"type": "string"}, "kind": {"type": "string", "enum": ["Conference", "Summit", "Meetup", "Workshop", "Awards"]}, "region": {"type": "string", "enum": ["Toronto/GTA", "Canada", "Worldwide"]}, "format": {"type": "string", "enum": ["In person", "Online", "Hybrid"]}, "price_kind": {"type": "string", "enum": ["Free", "Paid", "Not confirmed"]}, "status": {"type": "string", "enum": ["Registration open", "Approval required", "Check organizer", "Sold out", "Cancelled"]}, "topic": {"type": "string", "enum": ["AI", "Tech", "Markets"]}, "student_friendly": {"type": "boolean"}}, "required": ["slug", "title", "organizer", "start_date", "end_date", "timezone", "time_note", "location", "price_note", "audience", "summary", "official_url", "registration_url", "deadline_date", "deadline_note", "highlight_date", "kind", "region", "format", "price_kind", "status", "topic", "student_friendly"], "additionalProperties": false}}, "required": ["event"], "additionalProperties": false}},
   {
     name:'list_omnipulse_learning_topics',
     description:'Owner-only: list existing learning concepts before researching an addition. With slug, read back the complete saved lesson. Also returns approved primary reference domains. Does not send email.',
@@ -68,6 +71,10 @@ export async function POST(req: Request) {
   if (!tools.some(tool => tool.name === name)) return failure(id, -32602, "Unknown tool");
 
   try {
+    if(name==='list_omnipulse_events'||name==='publish_omnipulse_event'){
+      const result=name==='list_omnipulse_events'?{events:await allEvents()}:await publishEvent(body.params?.arguments?.event);
+      return rpc(id,{content:[{type:'text',text:JSON.stringify(result)}],structuredContent:result,isError:'published' in result&&!result.published});
+    }
     if(name==='list_omnipulse_learning_topics'){
       const lessons=await allLessons(),slug=body.params?.arguments?.slug;
       const result=typeof slug==='string'?{lesson:lessons.find(l=>l.slug===slug)||null}:{topics:lessons.map(({slug,title,category,level,added})=>({slug,title,category,level,added})),approved_reference_domains:researchHosts};

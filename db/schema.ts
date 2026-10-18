@@ -100,3 +100,8 @@ export const premiumTestCheckout = sqliteTable("premium_test_checkout", {
  checkoutUrl: text("checkout_url"),
  expiresAt: text("expires_at").notNull(),
 });
+
+export const eventListings = sqliteTable("event_listings", {
+ slug:text("slug").primaryKey(), content:text("content").notNull(),
+ updatedAt:text("updated_at").notNull(),
+});

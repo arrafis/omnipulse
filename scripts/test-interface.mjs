@@ -20,6 +20,7 @@ const readingHelpers=await load("../lib/reading-list.ts",{});
 const learningTypes=await load('../lib/learning-types.ts',{});
 const briefingComponent=await load("../app/briefing-experience.tsx",{"@/lib/briefing":briefingHelpers,"@/lib/reading-list":readingHelpers,"@/lib/learning-types":learningTypes});
 const desk = await load("../app/news-desk.tsx", {
+  "./events/event-catalog":{default:()=>React.createElement("section",null,"Events & Networking")},
   "./briefing-experience": {default: () => React.createElement("section", null, "Your briefing")},
   "@/lib/policy-impact":policyHelpers,
   "./subscribe": {default: () => React.createElement("div", null, "Email setup")},
@@ -77,6 +78,7 @@ assert.ok(pathsHtml.includes('/learn/optimization-chance-recourse'));assert.ok(p
 
 let refreshes = 0, sandboxCalls = 0;
 const mcp = await load("../app/mcp/route.ts", {
+  '@/lib/events':{allEvents:async()=>[],publishEvent:async()=>({published:true})},
   '@/lib/learning':{allLessons:async()=>[],publishLesson:async()=>({published:true}),researchHosts:[]},
   '@/lib/story-context':{storyContexts:async()=>[],publishStoryContext:async()=>({published:true})},
   '@/lib/briefing':briefingHelpers,
@@ -90,12 +92,12 @@ function request(method, headers = {}, params = {}) {
   return new Request("https://example.com/mcp", {method:"POST",headers:{"Content-Type":"application/json",...headers},body:JSON.stringify({jsonrpc:"2.0",id:1,method,params})});
 }
 assert.deepEqual((await (await mcp.POST(request("server/discover"))).json()).result.supportedVersions,["2026-07-28"]);
-assert.equal((await (await mcp.POST(request("tools/list"))).json()).result.tools.length,6);
+assert.equal((await (await mcp.POST(request("tools/list"))).json()).result.tools.length,8);
 const params={name:"refresh_omnipulse_news"};
 assert.equal((await mcp.POST(request("tools/call",{},params))).status,401);
 assert.equal((await mcp.POST(request("tools/call",{"oai-authenticated-user-id":"wrong","oai-authenticated-user-email":"reader@example.test"},params))).status,403);
 assert.equal(refreshes,0);
-for(const name of ['list_omnipulse_learning_topics','publish_omnipulse_learning_topic','publish_omnipulse_story_context']){
+for(const name of ['list_omnipulse_events','publish_omnipulse_event','list_omnipulse_learning_topics','publish_omnipulse_learning_topic','publish_omnipulse_story_context']){
  assert.equal((await mcp.POST(request('tools/call',{}, {name}))).status,401);
  assert.equal((await mcp.POST(request('tools/call',{'oai-authenticated-user-id':'wrong','oai-authenticated-user-email':'reader@example.test'}, {name}))).status,403);
 }
