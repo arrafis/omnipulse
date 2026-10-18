@@ -23,6 +23,8 @@ export async function allLessons():Promise<Lesson[]> {
 const concept=(title:string)=>title.toLowerCase().replace(/[^a-z0-9]/g,'');
 export async function publishLesson(input:unknown){
  if(!validateLesson(input))return {published:false,error:'Provide a complete plain-text lesson with two distinct primary references, a novelty reason, example and self-check.'};
+ const words=(s:string)=>s.trim().split(/\s+/).length;
+ if(words(input.explanation)<160||words(input.example)<100||words([input.definition,input.explanation,input.example,input.pitfall,input.question,input.answer].join(' '))<400)return {published:false,error:'Teach the topic fully: at least 160 explanation words, 100 worked-example words and 400 words overall. Define unfamiliar terms, use step-by-step paragraphs and explain the practice answer. Do not pad or repeat text to meet a word count.'};
  const existing=await allLessons();
  if(existing.some(l=>l.slug===input.slug||concept(l.title)===concept(input.title)))return {published:false,error:'This topic already exists. Do not republish it under a new name.'};
  if(input.prerequisites.some(slug=>!existing.some(l=>l.slug===slug)))return {published:false,error:'A prerequisite does not exist.'};

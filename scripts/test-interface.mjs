@@ -42,13 +42,28 @@ const briefingHtml=renderToStaticMarkup(React.createElement(briefingComponent.de
 assert.ok(briefingHtml.includes("Your briefing"));assert.ok(briefingHtml.includes("Since your last visit"));assert.ok(briefingHtml.includes("From the publisher"));assert.ok(briefingHtml.includes("Mark edition read"));assert.ok(briefingHtml.includes("Report an issue"));assert.ok(briefingHtml.includes("not story-specific analysis"));
 console.log("PASS essential briefing rendering, source transparency and reading controls");
 const expansion=await load('../lib/learning-expansion.ts',{});
-const baseLessons=(await load('../lib/learning-base.ts',{'./learning-expansion':expansion})).baseLessons;
+const guides=await load('../lib/learning-guides.ts',{});
+const baseLessons=(await load('../lib/learning-base.ts',{'./learning-expansion':expansion,'./learning-guides':guides})).baseLessons;
 const catalog=await load('../app/learn/learning-catalog.tsx',{'@/lib/learning-types':learningTypes});
 const catalogHtml=renderToStaticMarkup(React.createElement(catalog.default,{lessons:baseLessons}));
 for(const level of ['Beginner','Intermediate','Advanced'])assert.ok(catalogHtml.includes(level));
 assert.equal((catalogHtml.match(/class="lesson-card"/g)||[]).length,baseLessons.length);
 assert.ok(catalogHtml.includes('/learn/transformer-attention'));assert.ok(catalogHtml.includes('Find a concept'));
 console.log('PASS learning catalog renders all paths, depth levels, lesson routes and search controls');
+const lessonPage=await load('../app/learn/[slug]/page.tsx',{
+ 'next/navigation':{notFound:()=>{throw new Error('Not found');}},
+ '@/lib/learning':{allLessons:async()=>baseLessons},
+ '@/lib/learning-base':{baseLessons},
+ '@/lib/learning-types':learningTypes,
+ '../lesson-progress':{default:()=>null}
+});
+for(const lesson of baseLessons){
+ const html=renderToStaticMarkup(await lessonPage.default({params:Promise.resolve({slug:lesson.slug})}));
+ for(const id of ['key-terms','explanation','worked-example','practice','references'])assert.ok(html.includes('id="'+id+'"'),lesson.slug+': missing '+id);
+ assert.equal((html.match(/<details>/g)||[]).length,2,lesson.slug+': two practice answers');
+ assert.ok(html.includes(lesson.guide.terms[0][0]));
+}
+console.log('PASS all 72 lesson pages render teaching sections, glossary and both practice answers');
 
 let refreshes = 0, sandboxCalls = 0;
 const mcp = await load("../app/mcp/route.ts", {

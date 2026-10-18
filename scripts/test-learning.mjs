@@ -15,7 +15,11 @@ for(const l of base){assert.ok(l.sources.every(learning.approvedReference));asse
 const visited=new Set(),visiting=new Set();
 function walk(slug){assert.ok(!visiting.has(slug),'Prerequisite cycle at '+slug);if(visited.has(slug))return;visiting.add(slug);for(const p of base.find(l=>l.slug===slug).prerequisites)walk(p);visiting.delete(slug);visited.add(slug);}
 for(const l of base){walk(l.slug);assert.ok(l.definition.length>=35&&l.explanation.length>=180&&l.example.length>=60&&l.question.length>=15&&l.answer.length>=20,'Incomplete lesson: '+l.slug);}
-const candidate={...base[0],slug:'a-new-concept',title:'A researched new learning concept',reason:'This concept fills a specific gap with a distinct learning objective and two primary references.',sources:[...base[0].sources,{label:'NIST AI framework',url:'https://www.nist.gov/itl/ai-risk-management-framework'}]};
+const candidate={...base[0],slug:'a-new-concept',title:'A researched new learning concept',explanation:[base[0].explanation,base[0].guide.why,...base[0].guide.terms.map(t=>t.join(': ')),...base[0].guide.steps.map(s=>s.join(': '))].join('\n\n'),example:[base[0].example,...base[0].guide.walkthrough].join('\n\n'),reason:'This concept fills a specific gap with a distinct learning objective and two primary references.',sources:[...base[0].sources,{label:'NIST AI framework',url:'https://www.nist.gov/itl/ai-risk-management-framework'}]};
+assert.equal((await learning.publishLesson({...candidate,explanation:base[0].explanation,example:base[0].example})).published,false,'Short summaries must not pass the new publishing quality gate');
+const guideKeys=Object.keys(load('learning-guides').lessonGuides);
+assert.equal(guideKeys.length,base.length);
+for(const lesson of base){const guide=lesson.guide;assert.ok(guide,'Missing teaching guide: '+lesson.slug);assert.ok(guide.terms.length>=2&&guide.steps.length>=2&&guide.walkthrough.length>=3);assert.ok(guide.practice.question!==lesson.question);assert.ok(guide.practice.answer.length>=80);}
 assert.equal(learning.validateLesson({...candidate,sources:[{label:'Fake source',url:'javascript:alert(1)'}]}),false);
 assert.equal(learning.validateLesson({...candidate,sources:[{label:'Fake source',url:'https://nist.gov.evil.test/a'},candidate.sources[0]]}),false);
 assert.equal(learning.validateLesson({...candidate,explanation:'<script>alert(1)</script>'}),false);

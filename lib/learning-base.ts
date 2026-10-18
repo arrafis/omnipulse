@@ -1,10 +1,11 @@
 import type {Lesson,LearningCategory,LearningLevel} from './learning-types';
 import {expandedLessons} from './learning-expansion';
+import {lessonGuides} from './learning-guides';
 function lesson(slug:string,title:string,category:LearningCategory,level:LearningLevel,definition:string,explanation:string,example:string,pitfall:string,question:string,answer:string,prerequisites:string[],label:string,url:string):Lesson {
  return {slug,title,category,level,definition,explanation,example,pitfall,question,answer,prerequisites,sources:[{label,url}]};
 }
 // Original introductory lessons. References support the concepts; examples are illustrative.
-export const baseLessons:Lesson[]=[
+const foundationLessons:Lesson[]=[
  lesson('ai-and-machine-learning','AI, machine learning and models','AI','Beginner',
  'Artificial intelligence is a broad field of systems that perform tasks associated with intelligence. Machine learning is an approach in which a model learns patterns from examples.',
  'A model maps inputs to outputs using a learned representation. In supervised learning, training examples include a target, such as a label or number. Learning a pattern is different from understanding every situation in which it will be used. A useful first question is whether the training examples resemble the problem you actually need to solve.',
@@ -151,3 +152,4 @@ export const baseLessons:Lesson[]=[
  'Investor.gov: Options glossary','https://www.investor.gov/introduction-investing/investing-basics/glossary/options'),
  ...expandedLessons,
 ];
+export const baseLessons:Lesson[]=foundationLessons.map(lesson=>({...lesson,guide:lessonGuides[lesson.slug]}));
