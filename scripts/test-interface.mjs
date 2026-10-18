@@ -133,5 +133,7 @@ assert.equal(serviceCalls,1);
 console.log('PASS sandbox service endpoint rejects anonymous requests and live mode');
 
 const policyHtml=renderToStaticMarkup(React.createElement(desk.default,{live:[...live,{...live[0],id:4,url:'https://example.com/policy',title:'AI regulation consultation opens'}],feedStatus:{},newsletterEnabled:false,initialCategory:'Policy',initialQuery:''}));
-assert.ok(policyHtml.includes('AI regulation consultation opens'));assert.ok(!policyHtml.includes('Tech example'));assert.ok(policyHtml.includes('A consultation is not a law'));
+assert.ok(policyHtml.includes('AI regulation consultation opens'));assert.ok(!policyHtml.includes('Tech example'));assert.ok(policyHtml.includes('AI policy, government oversight'));assert.ok(!policyHtml.includes('A consultation is not a law'));
+const sourceHtml=renderToStaticMarkup(React.createElement(desk.default,{live,feedStatus:{success_at:new Date().toISOString(),error:'FTC unavailable; NIH Research Matters unavailable'},newsletterEnabled:false,initialCategory:'Policy',initialQuery:''}));
+assert.ok(sourceHtml.includes('MORNING EDITION'));assert.ok(!sourceHtml.includes('PARTIAL UPDATE'));assert.ok(sourceHtml.includes('2 sources unavailable'));assert.ok(sourceHtml.includes('NIH Research Matters unavailable'));assert.ok(sourceHtml.includes('all news desks'));
 console.log('PASS Policy direct URL rendering and filtering');

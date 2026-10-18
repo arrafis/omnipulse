@@ -29,24 +29,35 @@ export async function refreshFeedsIfDue():Promise<void> {
   if(!window)return;
   const db=database(), now=current.toISOString();
   await db.prepare("INSERT OR IGNORE INTO feed_sync (id,next_at) VALUES (1,'1970-01-01T00:00:00.000Z')").run();
-  const claimed=await db.prepare("UPDATE feed_sync SET checked_at=?,next_at=? WHERE id=1 AND (checked_at IS NULL OR checked_at<?)")
-   .bind(now,window.next,window.start).run();
+  const previous=await db.prepare('SELECT checked_at,error,next_at FROM feed_sync WHERE id=1').first<FeedStatus&{next_at:string}>();
+  const retry=Boolean(previous?.checked_at&&previous.checked_at>=window.start&&previous.error);
+  // Claim the initial edition or a failed-source retry. A short lease also recovers interrupted work.
+  const claimed=await db.prepare("UPDATE feed_sync SET checked_at=?,next_at=?,error='Refresh in progress' WHERE id=1 AND (checked_at IS NULL OR checked_at<? OR (error IS NOT NULL AND (next_at<=? OR (error!='Refresh in progress' AND next_at>=?))))")
+   .bind(now,new Date(current.getTime()+5*60000).toISOString(),window.start,now,window.next).run();
   if(!claimed.meta.changes)return;
-  const results=await Promise.allSettled(feeds.map(async feed=>{
-    const response=await fetch(feed.url,{headers:{"User-Agent":"OmniPulse/1.0 (RSS reader)","Accept":"application/rss+xml, application/xml, text/xml"},signal:AbortSignal.timeout(6500)});
+  const failedNames=previous?.error?.split('; ').map(x=>x.replace(/ unavailable$/,''))||[];
+  const pending=retry&&failedNames.some(name=>feeds.some(f=>f.name===name))?feeds.filter(f=>failedNames.includes(f.name)):feeds;
+  const results=await Promise.allSettled(pending.map(async feed=>{
+   let lastError:unknown;
+   for(let attempt=0;attempt<3;attempt++)try{
+    const response=await fetch(feed.url,{headers:{"User-Agent":"OmniPulse/1.0 (RSS reader)","Accept":"application/rss+xml, application/atom+xml, application/xml, text/xml"},signal:AbortSignal.timeout(8000)});
     if(!response.ok)throw new Error(`${feed.name}: HTTP ${response.status}`);
     const xml=(await response.text()).slice(0,1024*1024);
+    if(!/<(?:rss|feed|rdf:RDF)\b/i.test(xml))throw new Error(`${feed.name}: invalid feed response`);
     const parsed=parseFeed(xml,feed,now);
     const items=["FTC","UK DSIT"].includes(feed.name)?parsed.filter(isPolicyImpact):parsed;
-    if(!parsed.length)throw new Error(`${feed.name}: no recent feed items`);
-    await db.batch(items.map(item=>db.prepare("INSERT INTO feed_items (url,title,summary,category,source,published_at,fetched_at) VALUES (?,?,?,?,?,?,?) ON CONFLICT(url) DO UPDATE SET summary=excluded.summary,title=excluded.title,fetched_at=excluded.fetched_at")
+    // A valid feed with no recent entries is a successful check, not an outage.
+    if(items.length)await db.batch(items.map(item=>db.prepare("INSERT INTO feed_items (url,title,summary,category,source,published_at,fetched_at) VALUES (?,?,?,?,?,?,?) ON CONFLICT(url) DO UPDATE SET summary=excluded.summary,title=excluded.title,fetched_at=excluded.fetched_at")
      .bind(item.url,item.title,item.summary,item.category,item.source,item.published_at,item.fetched_at)));
     return items.length;
+   }catch(error){lastError=error;}
+   throw lastError;
   }));
-  const errors=results.flatMap((result,index)=>result.status==="rejected"?[`${feeds[index].name} unavailable`]:[]);
-  results.forEach((result,index)=>{if(result.status==="rejected")console.error("RSS refresh failed",feeds[index].name,result.reason);});
+  const errors=results.flatMap((result,index)=>result.status==="rejected"?[`${pending[index].name} unavailable`]:[]);
+  results.forEach((result,index)=>{if(result.status==="rejected")console.error("RSS refresh failed",pending[index].name,result.reason);});
+  const next=errors.length?new Date(Math.min(current.getTime()+30*60000,Date.parse(window.next))).toISOString():window.next;
   await db.prepare("UPDATE feed_sync SET success_at=CASE WHEN ? THEN ? ELSE success_at END,error=?,next_at=? WHERE id=1")
-   .bind(results.some(r=>r.status==="fulfilled")?1:0,now,errors.length?errors.join("; "):null,window.next).run();
+   .bind(results.some(r=>r.status==="fulfilled")?1:0,now,errors.length?errors.join("; "):null,next).run();
   await db.prepare("DELETE FROM feed_items WHERE published_at < ?").bind(new Date(Date.now()-30*86400000).toISOString()).run();
 }
 

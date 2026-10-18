@@ -8,6 +8,7 @@ for(const name of readdirSync('drizzle').filter(n=>n.endsWith('.sql')).sort())sq
 const statement=(query,values=[])=>({bind:(...args)=>statement(query,args),run:async()=>({meta:{changes:Number(sql.prepare(query).run(...values).changes)}}),first:async()=>sql.prepare(query).get(...values)||null,all:async()=>({results:sql.prepare(query).all(...values)})});
 const db={prepare:statement,batch:async statements=>Promise.all(statements.map(s=>s.run()))};
 let instant='2026-10-18T11:59:59Z',calls=0,fail=false;
+const failed=new Set(),attempts=new Map();let transient=false,empty=false;
 class Clock extends Date {constructor(value){super(value===undefined?instant:value);}static now(){return Date.parse(instant);}}
 const modules=new Map();
 function load(name){
@@ -15,9 +16,10 @@ function load(name){
  const exports={};modules.set(name,exports);
  const source=ts.transpileModule(readFileSync(`lib/${name}.ts`,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
  vm.runInNewContext(source,{exports,require:name=>name==='./content'?{database:()=>db}:load(name.replace('./','')),Date:Clock,Intl,URL,AbortSignal,console:{error:()=>{}},fetch:async url=>{
-  calls++;if(fail)return new Response('',{status:503});
+  calls++;attempts.set(url,(attempts.get(url)||0)+1);
+  if(fail||failed.has(url)||(transient&&attempts.get(url)===1))return new Response('',{status:503});
   const feed=modules.get('live-news').feeds.find(f=>f.url===url);
-  return new Response(`<item><title>Source announcement</title><link>https://${feed.host}/${encodeURIComponent(feed.name)}</link><pubDate>${instant}</pubDate><description>A source excerpt.</description></item>`);
+  return new Response(empty?'<rss><channel></channel></rss>':`<rss><channel><item><title>Source announcement</title><link>https://${feed.host}/${encodeURIComponent(feed.name)}</link><pubDate>${instant}</pubDate><description>A source excerpt.</description></item></channel></rss>`);
  }});
  return exports;
 }
@@ -29,10 +31,16 @@ assert.equal(calls,live.feeds.length,'Concurrent morning requests share one clai
 instant='2026-10-19T03:59:00Z';await live.refreshFeedsIfDue();assert.equal(calls,live.feeds.length,'No second refresh late in the Toronto day');
 instant='2026-10-19T11:59:00Z';await live.refreshFeedsIfDue();assert.equal(calls,live.feeds.length,'No pre-morning refresh after midnight');
 instant='2026-10-19T12:00:00Z';await live.refreshFeedsIfDue();assert.equal(calls,2*live.feeds.length,'Next morning starts a new edition');
-fail=true;instant='2026-10-20T12:00:00Z';await live.refreshFeedsIfDue();assert.equal(calls,3*live.feeds.length);
-instant='2026-10-20T18:00:00Z';await live.refreshFeedsIfDue();assert.equal(calls,3*live.feeds.length,'Failed sources also wait until the next morning');
+fail=true;instant='2026-10-20T12:00:00Z';await live.refreshFeedsIfDue();assert.equal(calls,5*live.feeds.length,'Three attempts for every failed source');
+instant='2026-10-20T12:29:59Z';await live.refreshFeedsIfDue();assert.equal(calls,5*live.feeds.length,'Retry backoff avoids repeated visits hammering failed sources');
 assert.ok(sql.prepare('SELECT error FROM feed_sync').get().error);
+fail=false;instant='2026-10-20T12:30:00Z';await Promise.all([live.refreshFeedsIfDue(),live.refreshFeedsIfDue()]);assert.equal(calls,6*live.feeds.length,'One retry completes the edition after recovery');assert.equal(sql.prepare('SELECT error FROM feed_sync').get().error,null);
+const one=live.feeds[0].url;failed.add(one);instant='2026-10-21T12:00:00Z';let before=calls;await live.refreshFeedsIfDue();assert.equal(calls-before,live.feeds.length+2);
+failed.clear();instant='2026-10-21T12:30:00Z';before=calls;await live.refreshFeedsIfDue();assert.equal(calls-before,1,'Only failed sources are retried');assert.equal(sql.prepare('SELECT error FROM feed_sync').get().error,null);
+instant='2026-10-22T12:00:00Z';attempts.clear();transient=true;before=calls;await live.refreshFeedsIfDue();assert.equal(calls-before,2*live.feeds.length,'Transient failures recover in the same refresh');assert.equal(sql.prepare('SELECT error FROM feed_sync').get().error,null);transient=false;
+instant='2026-10-23T12:00:00Z';empty=true;await live.refreshFeedsIfDue();assert.equal(sql.prepare('SELECT error FROM feed_sync').get().error,null,'A valid quiet feed does not produce a false outage');empty=false;
+sql.prepare("UPDATE feed_sync SET error='FTC unavailable',next_at='2026-10-24T12:00:00.000Z'").run();before=calls;await live.refreshFeedsIfDue();assert.equal(calls-before,1,'Previously deferred failures can recover immediately after upgrade');
 assert.equal(clock.refreshWindow(new Date('2026-10-31T12:00:00Z')).next,'2026-11-01T13:00:00.000Z','Fall DST keeps 8 AM local');
 assert.equal(clock.refreshWindow(new Date('2027-03-13T13:00:00Z')).next,'2027-03-14T12:00:00.000Z','Spring DST keeps 8 AM local');
 sql.close();
-console.log('PASS once-daily refresh: Toronto boundary, concurrent requests, failed sources and both DST transitions. Publisher fetches were mocked.');
+console.log('PASS morning refresh: once-daily success, bounded retries, failed-only recovery, concurrency, quiet feeds and DST. Publisher fetches were mocked.');

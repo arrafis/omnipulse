@@ -36,7 +36,7 @@ const tools = [
   },
   {
     name: "refresh_omnipulse_news",
-    description: "Check OmniPulse's approved public publisher feeds for the morning edition. Safe to retry; refreshes at most once per Toronto date, at or after 8 AM. Does not send email.",
+    description: "Check all approved publisher feeds for the morning edition at or after 8 AM Toronto. Successful sources are checked once per date; failed requests receive bounded retries and failed sources can be retried after 30 minutes. Returns source errors honestly. Does not send email.",
     inputSchema: { type: "object", properties: {}, additionalProperties: false },
   },
   {
