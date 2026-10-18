@@ -72,7 +72,7 @@ export async function unsubscribeByToken(token:string):Promise<boolean>{
 
 function pickStories(items:FeedItem[],plan="free",preferred="AI,Tech,Markets"):FeedItem[]{
  const chosen=preferred.split(",");
- return dailyBrief(plan==="premium"?items.filter(item=>chosen.includes(item.category)):items,5).map(group=>group.lead);
+ return dailyBrief(items.filter(item=>item.category!=="Medical"&&(plan!=="premium"||chosen.includes(item.category))),5).map(group=>group.lead);
 }
 type Recipient={id:number;email:string;plan:string;preferred_categories:string};
 export async function deliverDigest(){

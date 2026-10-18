@@ -29,7 +29,8 @@ export function parseFeed(xml:string,feed:Feed,now:string) {
     try {url=new URL(rawUrl);}catch{return [];}
     if(url.protocol!=="https:"||!(url.hostname===feed.host||url.hostname.endsWith(`.${feed.host}`))||!title||Number.isNaN(date.getTime())||date.getTime()>new Date(now).getTime()+3600000||date.getTime()<new Date(now).getTime()-30*86400000)return [];
     url.hash="";
-    return [{url:url.href,title,summary,category:feed.category,source:feed.name,published_at:date.toISOString(),fetched_at:now}];
+    const author=clean(field(item,"dc:creator")||field(item,"author")).slice(0,120);
+    return [{url:url.href,title,summary,category:feed.category,source:feed.name+(author?' · '+author:''),published_at:date.toISOString(),fetched_at:now}];
   });
 }
 

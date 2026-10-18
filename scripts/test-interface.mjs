@@ -30,6 +30,8 @@ function render(initialCategory, initialQuery = "") {
   return renderToStaticMarkup(React.createElement(desk.default, {live,feedStatus:{checked_at:null,success_at:null,error:null},newsletterEnabled:false,initialCategory,initialQuery}));
 }
 const ai = render("AI");
+const medicalHtml=renderToStaticMarkup(React.createElement(desk.default,{live:[...live,{...live[0],id:3,url:'https://example.com/medical',title:'Medical example',category:'Medical'}],feedStatus:{checked_at:null,success_at:null,error:null},newsletterEnabled:false,initialCategory:'Medical',initialQuery:''}));
+assert.ok(medicalHtml.includes('Medical example'));assert.ok(!medicalHtml.includes('AI example'));assert.ok(medicalHtml.includes('not diagnosis or treatment advice'));
 assert.ok(ai.includes("AI example")); assert.ok(!ai.includes("Tech example"));
 assert.ok(ai.includes('aria-label="Save story: AI example"')); assert.ok(ai.includes("AWAITING EDITION"));
 assert.ok(!render("All", "doesnotexist").includes("AI example"));
@@ -43,7 +45,8 @@ assert.ok(briefingHtml.includes("Your briefing"));assert.ok(briefingHtml.include
 console.log("PASS essential briefing rendering, source transparency and reading controls");
 const expansion=await load('../lib/learning-expansion.ts',{});
 const guides=await load('../lib/learning-guides.ts',{});
-const baseLessons=(await load('../lib/learning-base.ts',{'./learning-expansion':expansion,'./learning-guides':guides})).baseLessons;
+const courses=await load('../lib/course-lessons.ts',{});
+const baseLessons=(await load('../lib/learning-base.ts',{'./learning-expansion':expansion,'./learning-guides':guides,'./course-lessons':courses})).baseLessons;
 const catalog=await load('../app/learn/learning-catalog.tsx',{'@/lib/learning-types':learningTypes});
 const catalogHtml=renderToStaticMarkup(React.createElement(catalog.default,{lessons:baseLessons}));
 for(const level of ['Beginner','Intermediate','Advanced'])assert.ok(catalogHtml.includes(level));
@@ -63,7 +66,12 @@ for(const lesson of baseLessons){
  assert.equal((html.match(/<details>/g)||[]).length,2,lesson.slug+': two practice answers');
  assert.ok(html.includes(lesson.guide.terms[0][0]));
 }
-console.log('PASS all 72 lesson pages render teaching sections, glossary and both practice answers');
+console.log('PASS all lesson pages render teaching sections, glossary and both practice answers');
+const coverage=await load('../lib/course-coverage.ts',{});
+const paths=await load('../app/learn/study-paths/page.tsx',{'@/lib/learning-base':{baseLessons},'@/lib/course-coverage':coverage});
+const pathsHtml=renderToStaticMarkup(React.createElement(paths.default));
+for(const code of ['710','711','712','713','714','715'])assert.ok(pathsHtml.includes('MMGMT '+code));
+assert.ok(pathsHtml.includes('/learn/optimization-chance-recourse'));assert.ok(pathsHtml.includes('not an official McMaster course'));
 
 let refreshes = 0, sandboxCalls = 0;
 const mcp = await load("../app/mcp/route.ts", {

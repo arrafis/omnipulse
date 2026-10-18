@@ -21,7 +21,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ c
   }
 
   return <>
-    <div className="edition-bar"><span><span className="edition-dot" />THE DIGITAL EDITION</span><span>AI · TECHNOLOGY · MARKETS</span></div>
+    <div className="edition-bar"><span><span className="edition-dot" />THE DIGITAL EDITION</span><span>AI · TECHNOLOGY · MARKETS · MEDICAL</span></div>
     <header className="masthead"><a href="/" className="wordmark" aria-label="OmniPulse home">OMNIPULSE<span className="wordmark-dot">.</span></a><p>Signals worth your attention.</p></header>
     <NewsDesk live={live} contexts={contexts} feedStatus={feedStatus} newsletterEnabled={newsletterConfigured()}
       initialCategory={params.category} initialQuery={typeof params.q === "string" ? params.q.slice(0, 100) : ""} />

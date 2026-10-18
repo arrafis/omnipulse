@@ -2,7 +2,11 @@ import { database, type Category } from "./content";
 
 import { parseFeed, type Feed } from "./rss";
 import { refreshWindow } from "./edition-clock";
+import {medicalLaunchItems} from './medical-launch';
 export const feeds: Feed[] = [
+  {name:"BBC News Health",category:"Medical",url:"https://feeds.bbci.co.uk/news/health/rss.xml",host:"bbc.co.uk"},
+  {name:"NIH Research Matters",category:"Medical",url:"https://www.nih.gov/nih-research-matters/feed.xml",host:"nih.gov"},
+  {name:"Nature Medicine",category:"Medical",url:"https://www.nature.com/nm.rss",host:"nature.com"},
   {name:"BBC News Technology",category:"Tech",url:"https://feeds.bbci.co.uk/news/technology/rss.xml",host:"bbc.co.uk"},
   {name:"BBC News Business",category:"Markets",url:"https://feeds.bbci.co.uk/news/business/rss.xml",host:"bbc.co.uk"},
   {name:"Rest of World",category:"Tech",url:"https://restofworld.org/feed/",host:"restofworld.org"},
@@ -50,7 +54,10 @@ export async function liveNews(category?:Category,search?:string):Promise<{items
   const items=(await db.prepare(`SELECT id,url,title,summary,category,source,published_at,fetched_at FROM (
     SELECT *,ROW_NUMBER() OVER (PARTITION BY category ORDER BY published_at DESC) AS category_rank
     FROM feed_items WHERE ${where.join(" AND ")}
-   ) WHERE category_rank<=24 ORDER BY published_at DESC LIMIT 72`).bind(...params).all<FeedItem>()).results;
+   ) WHERE category_rank<=24 ORDER BY published_at DESC LIMIT 96`).bind(...params).all<FeedItem>()).results;
   const status=(await db.prepare("SELECT checked_at,success_at,error FROM feed_sync WHERE id=1").first<FeedStatus>())||{checked_at:null,success_at:null,error:null};
-  return {items,status};
+  // A dated launch edition keeps the new desk useful before its first morning sync.
+  // It expires with the normal seven-day window and is superseded by stored Medical items.
+  const launch=items.some(i=>i.category==='Medical')||category&&category!=='Medical'?[]:medicalLaunchItems.filter(i=>Date.parse(i.published_at)>=Date.now()-7*86400000&&(!search||i.title.toLowerCase().includes(search.toLowerCase())));
+  return {items:[...items,...launch].sort((a,b)=>b.published_at.localeCompare(a.published_at)),status};
 }

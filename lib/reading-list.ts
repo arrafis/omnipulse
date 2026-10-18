@@ -10,7 +10,7 @@ export function readReadingList(raw: string | null): SavedStory[] {
     return input.filter((item): item is SavedStory => {
       if (!item || typeof item !== "object") return false;
       const s = item as Record<string, unknown>;
-      if (!["url", "title", "source", "published_at", "summary"].every(key => typeof s[key] === "string") || !["AI", "Tech", "Markets"].includes(s.category as string)) return false;
+      if (!["url", "title", "source", "published_at", "summary"].every(key => typeof s[key] === "string") || !["AI", "Tech", "Markets", "Medical"].includes(s.category as string)) return false;
       try { if (new URL(s.url as string).protocol !== "https:") return false; } catch { return false; }
       if (seen.has(s.url as string) || Number.isNaN(Date.parse(s.published_at as string))) return false;
       seen.add(s.url as string);

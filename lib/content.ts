@@ -1,12 +1,12 @@
 import { env } from "cloudflare:workers";
 
-export type Category = "AI" | "Tech" | "Markets";
+export type Category = "AI" | "Tech" | "Markets" | "Medical";
 export type Article = {
  id:number; slug:string; title:string; summary:string; body:string; category:Category;
  source_url:string; source_name:string; status:"draft"|"published";
  created_at:string; updated_at:string; published_at:string|null;
 };
-export const categories: Category[] = ["AI","Tech","Markets"];
+export const categories: Category[] = ["AI","Tech","Markets","Medical"];
 
 export function database() {
  if (!env.DB) throw new Error("Newsroom storage is unavailable");

@@ -66,3 +66,12 @@ check("Briefing stays finite, represents all available desks and removes exact d
 check("Routine fetch timestamps never create false content updates",()=>{
  const item=make(1,"A headline");assert.equal(fingerprint(item),fingerprint({...item,fetched_at:"2026-10-15T00:00:00Z"}));assert.notEqual(fingerprint(item),fingerprint({...item,summary:"Publisher correction"}));
 });
+check("Medical stories retain their desk, date, source and safe byline",()=>{
+ const result=parseFeed('<item><title>Research finding</title><link>https://www.nature.com/articles/test</link><dc:date>2026-10-13</dc:date><dc:creator><![CDATA[<b>A Researcher</b>]]></dc:creator></item>',{name:'Nature Medicine',category:'Medical',host:'nature.com',url:'https://www.nature.com/nm.rss'},now);
+ assert.equal(result.length,1);assert.equal(result[0].category,'Medical');assert.equal(result[0].source,'Nature Medicine · A Researcher');assert.ok(!result[0].source.includes('<'));
+ assert.equal(readReadingList(JSON.stringify([{...story,category:'Medical'}])).length,1);
+});
+check("The home brief can represent Medical while remaining finite",()=>{
+ const result=dailyBrief([make(101,'AI model results','AI'),make(102,'Technology security update','Tech'),make(103,'Markets policy decision','Markets'),make(104,'Medical research finding','Medical')]);
+ assert.equal(result.length,4);assert.ok(result.some(g=>g.lead.category==='Medical'));
+});

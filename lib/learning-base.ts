@@ -1,6 +1,7 @@
 import type {Lesson,LearningCategory,LearningLevel} from './learning-types';
 import {expandedLessons} from './learning-expansion';
 import {lessonGuides} from './learning-guides';
+import {courseLessons} from './course-lessons';
 function lesson(slug:string,title:string,category:LearningCategory,level:LearningLevel,definition:string,explanation:string,example:string,pitfall:string,question:string,answer:string,prerequisites:string[],label:string,url:string):Lesson {
  return {slug,title,category,level,definition,explanation,example,pitfall,question,answer,prerequisites,sources:[{label,url}]};
 }
@@ -152,4 +153,4 @@ const foundationLessons:Lesson[]=[
  'Investor.gov: Options glossary','https://www.investor.gov/introduction-investing/investing-basics/glossary/options'),
  ...expandedLessons,
 ];
-export const baseLessons:Lesson[]=foundationLessons.map(lesson=>({...lesson,guide:lessonGuides[lesson.slug]}));
+export const baseLessons:Lesson[]=[...foundationLessons.map(lesson=>({...lesson,guide:lessonGuides[lesson.slug]})),...courseLessons.map(lesson=>({...lesson,category:lesson.slug==='analytics-deployment-snowflake'?'Technology' as const:lesson.category}))];
