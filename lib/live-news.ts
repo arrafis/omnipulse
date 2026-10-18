@@ -2,8 +2,11 @@ import { database, type Category } from "./content";
 
 import { parseFeed, type Feed } from "./rss";
 import { refreshWindow } from "./edition-clock";
+import {isPolicyImpact} from './policy-impact';
 import {medicalLaunchItems} from './medical-launch';
 export const feeds: Feed[] = [
+  {name:"FTC",category:"Tech",url:"https://www.ftc.gov/feeds/press-release.xml",host:"ftc.gov"},
+  {name:"UK DSIT",category:"Tech",url:"https://www.gov.uk/government/organisations/department-for-science-innovation-and-technology.atom",host:"gov.uk"},
   {name:"BBC News Health",category:"Medical",url:"https://feeds.bbci.co.uk/news/health/rss.xml",host:"bbc.co.uk"},
   {name:"NIH Research Matters",category:"Medical",url:"https://www.nih.gov/nih-research-matters/feed.xml",host:"nih.gov"},
   {name:"Nature Medicine",category:"Medical",url:"https://www.nature.com/nm.rss",host:"nature.com"},
@@ -33,8 +36,9 @@ export async function refreshFeedsIfDue():Promise<void> {
     const response=await fetch(feed.url,{headers:{"User-Agent":"OmniPulse/1.0 (RSS reader)","Accept":"application/rss+xml, application/xml, text/xml"},signal:AbortSignal.timeout(6500)});
     if(!response.ok)throw new Error(`${feed.name}: HTTP ${response.status}`);
     const xml=(await response.text()).slice(0,1024*1024);
-    const items=parseFeed(xml,feed,now);
-    if(!items.length)throw new Error(`${feed.name}: no recent feed items`);
+    const parsed=parseFeed(xml,feed,now);
+    const items=["FTC","UK DSIT"].includes(feed.name)?parsed.filter(isPolicyImpact):parsed;
+    if(!parsed.length)throw new Error(`${feed.name}: no recent feed items`);
     await db.batch(items.map(item=>db.prepare("INSERT INTO feed_items (url,title,summary,category,source,published_at,fetched_at) VALUES (?,?,?,?,?,?,?) ON CONFLICT(url) DO UPDATE SET summary=excluded.summary,title=excluded.title,fetched_at=excluded.fetched_at")
      .bind(item.url,item.title,item.summary,item.category,item.source,item.published_at,item.fetched_at)));
     return items.length;

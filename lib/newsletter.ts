@@ -1,4 +1,5 @@
 import { dailyBrief } from "./briefing";
+import {policyDigest} from "./policy-impact";
 import {storyContexts} from "./story-context";
 import {renderDigest} from "./digest-template";
 import { env } from "cloudflare:workers";
@@ -72,7 +73,7 @@ export async function unsubscribeByToken(token:string):Promise<boolean>{
 
 function pickStories(items:FeedItem[],plan="free",preferred="AI,Tech,Markets"):FeedItem[]{
  const chosen=preferred.split(",");
- return dailyBrief(items.filter(item=>item.category!=="Medical"&&(plan!=="premium"||chosen.includes(item.category))),5).map(group=>group.lead);
+ return policyDigest(items.filter(item=>item.category!=="Medical"&&(plan!=="premium"||chosen.includes(item.category))), dailyBrief);
 }
 type Recipient={id:number;email:string;plan:string;preferred_categories:string};
 export async function deliverDigest(){

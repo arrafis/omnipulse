@@ -14,12 +14,14 @@ async function load(path, stubs) {
   vm.runInNewContext(outputText, { exports, require: name => name in stubs ? stubs[name] : require(name), Response, Date, URL, console });
   return exports;
 }
+const policyHelpers=await load("../lib/policy-impact.ts",{});
 const briefingHelpers=await load("../lib/briefing.ts",{});
 const readingHelpers=await load("../lib/reading-list.ts",{});
 const learningTypes=await load('../lib/learning-types.ts',{});
 const briefingComponent=await load("../app/briefing-experience.tsx",{"@/lib/briefing":briefingHelpers,"@/lib/reading-list":readingHelpers,"@/lib/learning-types":learningTypes});
 const desk = await load("../app/news-desk.tsx", {
   "./briefing-experience": {default: () => React.createElement("section", null, "Your briefing")},
+  "@/lib/policy-impact":policyHelpers,
   "./subscribe": {default: () => React.createElement("div", null, "Email setup")},
   "@/lib/edition-clock": {editionDay:date=>date.toISOString().slice(0,10)},
   "@/lib/reading-list": {READING_LIST_KEY: "test", readReadingList: () => []},
@@ -128,3 +130,7 @@ serviceMode=false;
 assert.equal((await testCheckout.POST(serviceRequest(serviceEnv.STRIPE_TEST_CHECKOUT_TOKEN))).status,403);
 assert.equal(serviceCalls,1);
 console.log('PASS sandbox service endpoint rejects anonymous requests and live mode');
+
+const policyHtml=renderToStaticMarkup(React.createElement(desk.default,{live:[...live,{...live[0],id:4,url:'https://example.com/policy',title:'AI regulation consultation opens'}],feedStatus:{},newsletterEnabled:false,initialCategory:'Policy',initialQuery:''}));
+assert.ok(policyHtml.includes('AI regulation consultation opens'));assert.ok(!policyHtml.includes('Tech example'));assert.ok(policyHtml.includes('A consultation is not a law'));
+console.log('PASS Policy direct URL rendering and filtering');

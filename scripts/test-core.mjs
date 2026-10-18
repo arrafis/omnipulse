@@ -75,3 +75,17 @@ check("The home brief can represent Medical while remaining finite",()=>{
  const result=dailyBrief([make(101,'AI model results','AI'),make(102,'Technology security update','Tech'),make(103,'Markets policy decision','Markets'),make(104,'Medical research finding','Medical')]);
  assert.equal(result.length,4);assert.ok(result.some(g=>g.lead.category==='Medical'));
 });
+
+const {isPolicyImpact,policyDigest}=await moduleAt('../lib/policy-impact.ts');
+check('Policy lens requires both technology and policy or social impact',()=>{
+ assert.ok(isPolicyImpact(make(90,'AI regulation consultation opens')));
+ assert.ok(isPolicyImpact(make(91,'Digital jobs and access in Bangladesh')));
+ assert.ok(!isPolicyImpact(make(92,'Election debate on income tax')));
+ assert.ok(!isPolicyImpact(make(93,'New smartphone review')));
+ assert.ok(!isPolicyImpact(make(94,'AI medical regulation','Medical')));
+});
+check('Digest reserves at most one policy slot and retains finite edition',()=>{
+ const a=make(95,'AI safety law consultation'),b=make(96,'AI regulation oversight');
+ const items=[make(1,'AI model','AI'),make(2,'Tech chip'),make(3,'Rates','Markets'),make(4,'Cloud'),make(5,'Software'),a,b];
+ const picks=policyDigest(items,dailyBrief);assert.equal(picks.length,5);assert.ok(picks.some(x=>x.url===a.url));assert.equal(new Set(picks.map(x=>x.url)).size,5);assert.equal(picks.filter(isPolicyImpact).length,1);
+});
