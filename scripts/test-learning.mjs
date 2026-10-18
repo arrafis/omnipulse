@@ -9,16 +9,19 @@ const stmt=(query,values=[])=>({bind:(...args)=>stmt(query,args),run:async()=>({
 const db={prepare:stmt};const cache=new Map();
 function load(name){if(cache.has(name))return cache.get(name);const exports={};cache.set(name,exports);const source=ts.transpileModule(readFileSync(`lib/${name}.ts`,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;vm.runInNewContext(source,{exports,require:name=>name==='./content'?{database:()=>db}:load(name.replace('./','')),Date,Intl,URL,console});return exports;}
 const learning=load('learning'),base=load('learning-base').baseLessons,contexts=load('story-context');
-assert.equal(base.length,18);assert.equal(new Set(base.map(l=>l.slug)).size,18);
-for(const category of ['AI','Technology','Finance'])for(const level of ['Beginner','Intermediate','Advanced'])assert.ok(base.filter(l=>l.category===category&&l.level===level).length>=2);
+assert.equal(base.length,72);assert.equal(new Set(base.map(l=>l.slug)).size,base.length);
+for(const category of ['AI','Technology','Finance'])for(const level of ['Beginner','Intermediate','Advanced'])assert.equal(base.filter(l=>l.category===category&&l.level===level).length,8);
 for(const l of base){assert.ok(l.sources.every(learning.approvedReference));assert.ok(l.prerequisites.every(p=>base.some(x=>x.slug===p)));}
+const visited=new Set(),visiting=new Set();
+function walk(slug){assert.ok(!visiting.has(slug),'Prerequisite cycle at '+slug);if(visited.has(slug))return;visiting.add(slug);for(const p of base.find(l=>l.slug===slug).prerequisites)walk(p);visiting.delete(slug);visited.add(slug);}
+for(const l of base){walk(l.slug);assert.ok(l.definition.length>=35&&l.explanation.length>=180&&l.example.length>=60&&l.question.length>=15&&l.answer.length>=20,'Incomplete lesson: '+l.slug);}
 const candidate={...base[0],slug:'a-new-concept',title:'A researched new learning concept',reason:'This concept fills a specific gap with a distinct learning objective and two primary references.',sources:[...base[0].sources,{label:'NIST AI framework',url:'https://www.nist.gov/itl/ai-risk-management-framework'}]};
 assert.equal(learning.validateLesson({...candidate,sources:[{label:'Fake source',url:'javascript:alert(1)'}]}),false);
 assert.equal(learning.validateLesson({...candidate,sources:[{label:'Fake source',url:'https://nist.gov.evil.test/a'},candidate.sources[0]]}),false);
 assert.equal(learning.validateLesson({...candidate,explanation:'<script>alert(1)</script>'}),false);
 assert.equal((await learning.publishLesson({...candidate,prerequisites:['does-not-exist']})).published,false);
 assert.equal((await learning.publishLesson(candidate)).published,true);
-assert.equal((await learning.allLessons()).length,19);
+assert.equal((await learning.allLessons()).length,base.length+1);
 assert.equal((await learning.publishLesson(candidate)).published,false);
 assert.equal((await learning.publishLesson({...candidate,slug:'another-concept',title:'Another distinct topic'})).published,false,'Only one addition per Toronto date');
 const now=new Date().toISOString(),item={url:'https://openai.com/index/test-story',title:'A model announcement',summary:'A publisher summary',category:'AI',source:'OpenAI News',published_at:now,fetched_at:now,id:1};

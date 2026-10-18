@@ -1,4 +1,5 @@
 import type {Lesson,LearningCategory,LearningLevel} from './learning-types';
+import {expandedLessons} from './learning-expansion';
 function lesson(slug:string,title:string,category:LearningCategory,level:LearningLevel,definition:string,explanation:string,example:string,pitfall:string,question:string,answer:string,prerequisites:string[],label:string,url:string):Lesson {
  return {slug,title,category,level,definition,explanation,example,pitfall,question,answer,prerequisites,sources:[{label,url}]};
 }
@@ -148,4 +149,5 @@ export const baseLessons:Lesson[]=[
  'Why is a call with a $3 expiry payoff not profitable when its premium was $5?',
  'The premium is part of the cost. The net result is $3 − $5 = −$2 per unit before other costs.', ['bonds-and-yields','diversification-and-risk'],
  'Investor.gov: Options glossary','https://www.investor.gov/introduction-investing/investing-basics/glossary/options'),
+ ...expandedLessons,
 ];

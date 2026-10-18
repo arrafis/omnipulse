@@ -41,11 +41,12 @@ console.log("PASS rendered categories, search, saved empty state and accessible 
 const briefingHtml=renderToStaticMarkup(React.createElement(briefingComponent.default,{items:live}));
 assert.ok(briefingHtml.includes("Your briefing"));assert.ok(briefingHtml.includes("Since your last visit"));assert.ok(briefingHtml.includes("From the publisher"));assert.ok(briefingHtml.includes("Mark edition read"));assert.ok(briefingHtml.includes("Report an issue"));assert.ok(briefingHtml.includes("not story-specific analysis"));
 console.log("PASS essential briefing rendering, source transparency and reading controls");
-const baseLessons=(await load('../lib/learning-base.ts',{})).baseLessons;
+const expansion=await load('../lib/learning-expansion.ts',{});
+const baseLessons=(await load('../lib/learning-base.ts',{'./learning-expansion':expansion})).baseLessons;
 const catalog=await load('../app/learn/learning-catalog.tsx',{'@/lib/learning-types':learningTypes});
 const catalogHtml=renderToStaticMarkup(React.createElement(catalog.default,{lessons:baseLessons}));
 for(const level of ['Beginner','Intermediate','Advanced'])assert.ok(catalogHtml.includes(level));
-assert.equal((catalogHtml.match(/class="lesson-card"/g)||[]).length,18);
+assert.equal((catalogHtml.match(/class="lesson-card"/g)||[]).length,baseLessons.length);
 assert.ok(catalogHtml.includes('/learn/transformer-attention'));assert.ok(catalogHtml.includes('Find a concept'));
 console.log('PASS learning catalog renders all paths, depth levels, lesson routes and search controls');
 
